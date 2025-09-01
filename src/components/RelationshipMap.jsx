@@ -72,13 +72,13 @@ function computeFitView(nodes, viewportW, viewportH, padding = 80, limits = { mi
     minY = Math.min(minY, n.y - r);
     maxY = Math.max(maxY, n.y + r);
   }
-  const contentW = Math.max(1, maxX - minX);
-  const contentH = Math.max(1, maxY - minY);
-  const sx = (viewportW - padding * 2) / contentW;
-  const sy = (viewportH - padding * 2) / contentH;
+  const width = maxX - minX;
+  const height = maxY - minY;
+  const sx = (viewportW - padding * 2) / (width || 1);
+  const sy = (viewportH - padding * 2) / (height || 1);
   const s = clamp(Math.min(sx, sy), limits.min, limits.max);
-  const tx = padding + (viewportW - padding * 2 - contentW * s) / 2 - minX * s;
-  const ty = padding + (viewportH - padding * 2 - contentH * s) / 2 - minY * s;
+  const tx = padding + (viewportW - padding * 2 - width * s) / 2 - minX * s;
+  const ty = padding + (viewportH - padding * 2 - height * s) / 2 - minY * s;
   return { scale: s, tx, ty };
 }
 
