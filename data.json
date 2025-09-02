@@ -1,0 +1,29 @@
+{
+  "groups": {
+    "team": { "label": "The Team", "color": "#5B8DEF" },
+    "planters": { "label": "The Planters", "color": "#44C4A1" },
+    "scientists": { "label": "The Scientists", "color": "#FF9171" },
+    "main": { "label": "The Main Guy", "color": "#9B7DFF" }
+  },
+  "nodes": [
+    { "id": "main", "label": "The Main Guy", "group": "main", "x": 400, "y": 340, "r": 56, "description": "" },
+    { "id": "t1", "label": "Ari", "group": "team", "x": 160, "y": 145, "description": "" },
+    { "id": "t2", "label": "Moe", "group": "team", "x": 230, "y": 170, "description": "" },
+    { "id": "t3", "label": "Ned", "group": "team", "x": 300, "y": 160, "description": "" },
+    { "id": "t4", "label": "Lee", "group": "team", "x": 90, "y": 240, "description": "" },
+    { "id": "p1", "label": "Ivy", "group": "planters", "x": 660, "y": 210, "description": "" },
+    { "id": "p2", "label": "Bud", "group": "planters", "x": 700, "y": 340, "description": "" },
+    { "id": "s1", "label": "Ada", "group": "scientists", "x": 220, "y": 520, "description": "" },
+    { "id": "s2", "label": "Bo", "group": "scientists", "x": 120, "y": 620, "description": "" },
+    { "id": "s3", "label": "Cy", "group": "scientists", "x": 360, "y": 610, "description": "" }
+  ],
+  "links": [
+    { "id": "l1", "source": "t1", "target": "main", "type": "dashed" },
+    { "id": "l2", "source": "t3", "target": "main", "type": "dashed" },
+    { "id": "l3", "source": "t4", "target": "s2", "type": "solid" },
+    { "id": "l4", "source": "p1", "target": "main", "type": "curved" },
+    { "id": "l5", "source": "p2", "target": "main", "type": "curved" },
+    { "id": "l6", "source": "s1", "target": "s2", "type": "solid" },
+    { "id": "l7", "source": "s1", "target": "main", "type": "dashed" }
+  ]
+}
