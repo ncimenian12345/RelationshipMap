@@ -302,7 +302,7 @@ export default function RelationshipMap() {
   // Group labels (positions roughly matching demo)
   const groupLabels = useMemo(() => ({
     team: { x: 210, y: 100, label: "The Team" },
-    planters: { x: 690, y: 160, label: "The Planters" },
+    planters: { x: 550, y: 140, label: "The Planters" },
     scientists: { x: 260, y: 470, label: "The Scientists" },
     main: { x: 350, y: 260, label: "The Main Guy" },
   }), []);
