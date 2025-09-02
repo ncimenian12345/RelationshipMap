@@ -30,12 +30,22 @@ cd relationship-map
 npm install
 ```
 
-3. Start the development server:
+3. In a separate terminal, start the API server:
+```bash
+npm run server
+```
+
+4. Start the front-end development server:
 ```bash
 npm run dev
 ```
 
-4. Open your browser and navigate to `http://localhost:5173`
+5. Open your browser and navigate to `http://localhost:5173`
+
+> The front end expects API requests to be sent to the URL specified in the
+> `VITE_API_URL` environment variable. When running locally the default is
+> `http://localhost:3000`, but you can override this by exporting
+> `VITE_API_URL` before starting `npm run dev`.
 
 ## Usage
 
