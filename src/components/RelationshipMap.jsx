@@ -37,7 +37,7 @@ const demo = {
   nodes: [
     { id: "main", label: "The Main Guy", group: "main", x: 400, y: 340, r: 56, description: "" },
     { id: "t1", label: "Ari", group: "team", x: 160, y: 145, description: "" },
-    { id: "t2", label: "Moe", group: "team", x: 230, y: 150, description: "" },
+    { id: "t2", label: "Moe", group: "team", x: 230, y: 170, description: "" },
     { id: "t3", label: "Ned", group: "team", x: 300, y: 160, description: "" },
     { id: "t4", label: "Lee", group: "team", x: 90, y: 240, description: "" },
     { id: "p1", label: "Ivy", group: "planters", x: 660, y: 210, description: "" },
@@ -304,7 +304,7 @@ export default function RelationshipMap() {
     team: { x: 210, y: 100, label: "The Team" },
     planters: { x: 690, y: 160, label: "The Planters" },
     scientists: { x: 260, y: 470, label: "The Scientists" },
-    main: { x: 400, y: 260, label: "The Main Guy" },
+    main: { x: 350, y: 260, label: "The Main Guy" },
   }), []);
 
   // Add Node / Link state & helpers
