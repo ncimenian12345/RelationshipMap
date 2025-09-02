@@ -388,7 +388,7 @@ export default function RelationshipMap() {
   return (
     <div
       ref={containerRef}
-      className="w-full h-screen md:h-[720px] relative bg-stone-200 rounded-2xl overflow-hidden"
+      className="w-full h-full relative bg-stone-200 rounded-2xl overflow-hidden"
       onClick={() => setFocused(null)}
     >
       {/* Header */}

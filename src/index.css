@@ -6,4 +6,5 @@
 /* optional: make the app fill the viewport */
 html, body, #root {
   height: 100%;
+  overflow: hidden;
 }
