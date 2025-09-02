@@ -286,16 +286,15 @@ export default function RelationshipMap() {
   // UI helpers
   const zoomBy = (mult) => {
     const rect = containerRef.current?.getBoundingClientRect();
-    const cx = (rect?.width || 900) / 2;
-    const cy = (rect?.height || 700) / 2;
-    const evt = {
-      preventDefault: () => {},
-      currentTarget: containerRef.current,
-      clientX: (rect?.left || 0) + cx,
-      clientY: (rect?.top || 0) + cy,
-      deltaY: mult > 1 ? -500 : 500,
-    };
-    events.onWheel(evt);
+    if (!rect) return;
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+    const wx = (cx - transform.tx) / (transform.scale || 1);
+    const wy = (cy - transform.ty) / (transform.scale || 1);
+    const newScale = clamp((transform.scale || 1) * mult, limits.min, limits.max);
+    const ntx = cx - wx * newScale;
+    const nty = cy - wy * newScale;
+    setView({ scale: newScale, tx: ntx, ty: nty });
   };
 
   // Group labels (positions roughly matching demo)
