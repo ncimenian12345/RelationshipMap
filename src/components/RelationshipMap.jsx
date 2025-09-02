@@ -387,7 +387,7 @@ export default function RelationshipMap() {
   return (
     <div
       ref={containerRef}
-      className="w-full h-[720px] relative bg-stone-200 rounded-2xl overflow-hidden"
+      className="w-full h-screen md:h-[720px] relative bg-stone-200 rounded-2xl overflow-hidden"
       onClick={() => setFocused(null)}
     >
       {/* Header */}
@@ -462,8 +462,11 @@ export default function RelationshipMap() {
       )}
 
       {/* Bottom Panel: Focus, Add Node, Add Link, Notes */}
-      <div className="absolute bottom-3 left-3 right-3 grid grid-cols-1 md:grid-cols-4 gap-3" onClick={(e) => e.stopPropagation()}>
-        <div className="bg-white/90 rounded-2xl p-3 shadow">
+      <div
+        className="absolute bottom-3 left-3 right-3 flex overflow-x-auto gap-3 md:grid md:grid-cols-4 md:overflow-visible"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-white/90 rounded-2xl p-3 shadow flex-shrink-0 w-72 md:w-auto">
           <div className="font-semibold mb-1">Focused</div>
           {focused ? (
             <div className="text-sm">
@@ -476,7 +479,7 @@ export default function RelationshipMap() {
           )}
         </div>
 
-        <div className="bg-white/90 rounded-2xl p-3 shadow">
+        <div className="bg-white/90 rounded-2xl p-3 shadow flex-shrink-0 w-72 md:w-auto">
           <div className="font-semibold mb-2">Add Node</div>
           <div className="flex flex-col gap-2 text-sm">
             <div className="flex gap-2">
@@ -490,7 +493,7 @@ export default function RelationshipMap() {
           </div>
         </div>
 
-        <div className="bg-white/90 rounded-2xl p-3 shadow">
+        <div className="bg-white/90 rounded-2xl p-3 shadow flex-shrink-0 w-72 md:w-auto">
           <div className="font-semibold mb-2">Add Link</div>
           <div className="flex gap-2 text-sm">
             <input className="px-2 py-1 rounded-lg border w-full" placeholder="source id (e.g., t1)" value={newLink.source} onChange={(e) => setNewLink((l) => ({ ...l, source: e.target.value }))} />
@@ -505,7 +508,7 @@ export default function RelationshipMap() {
           {lastError && <div className="text-xs text-red-600 mt-2">{lastError}</div>}
         </div>
 
-        <div className="bg-white/90 rounded-2xl p-3 shadow">
+        <div className="bg-white/90 rounded-2xl p-3 shadow flex-shrink-0 w-72 md:w-auto">
           <div className="font-semibold mb-2">Notes for Focused</div>
           {focused ? (
             <div className="flex flex-col gap-2 text-sm">
