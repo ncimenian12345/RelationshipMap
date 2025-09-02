@@ -26,6 +26,12 @@ const avatarPool = [
 ];
 const randomAvatar = () => avatarPool[Math.floor(Math.random() * avatarPool.length)];
 
+const API_URL = "http://localhost:3000";
+const API_HEADERS = {
+  "Content-Type": "application/json",
+  Authorization: "Bearer dev-key",
+};
+
 // ---------------- Demo Data (✅ now defined in-file) ----------------
 const demo = {
   groups: {
@@ -218,18 +224,40 @@ const Edge = ({ a, b, type = "solid", highlight = false }) => {
 
 // ---------------- Component ----------------
 export default function RelationshipMap() {
-  // ✅ Initialize from demo (which is now defined above)
-  const [data, setData] = useState(() => ({
-    ...demo,
-    nodes: demo.nodes.map((n) => ({
-      ...n,
-      avatar: n.avatar || randomAvatar(),
-      description: n.description || "",
-    })),
-  }));
+  const [data, setData] = useState({ groups: {}, nodes: [], links: [] });
   const [focused, setFocused] = useState(null);
   const containerRef = useRef(null);
   const { transform, events, setView, limits } = usePanZoom({ initial: 1, min: 0.5, max: 2.5 });
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch(`${API_URL}/map`, { headers: API_HEADERS });
+        if (!res.ok) throw new Error('load failed');
+        const json = await res.json();
+        setData({
+          ...json,
+          nodes: json.nodes.map((n) => ({
+            ...n,
+            avatar: n.avatar || randomAvatar(),
+            description: n.description || '',
+          })),
+        });
+        setTimeout(fitToContent, 0);
+      } catch (e) {
+        setData({
+          ...demo,
+          nodes: demo.nodes.map((n) => ({
+            ...n,
+            avatar: n.avatar || randomAvatar(),
+            description: n.description || '',
+          })),
+        });
+        setTimeout(fitToContent, 0);
+      }
+    };
+    load();
+  }, []);
 
   const visibleNodes = data.nodes;
   const visibleLinks = data.links;
@@ -324,7 +352,7 @@ export default function RelationshipMap() {
     return { x, y };
   };
 
-  const handleAddNode = () => {
+  const handleAddNode = async () => {
     setLastError("");
     const baseId = slug(newNode.label);
     const id = baseId || `n_${Date.now().toString(36)}`;
@@ -345,9 +373,20 @@ export default function RelationshipMap() {
     };
     setData((d) => ({ ...d, nodes: [...d.nodes, node] }));
     setNewNode({ label: "", group: "team", description: "" });
+    try {
+      const res = await fetch(`${API_URL}/nodes`, {
+        method: "POST",
+        headers: API_HEADERS,
+        body: JSON.stringify(node),
+      });
+      if (!res.ok) throw new Error('req failed');
+    } catch (err) {
+      setLastError("Failed to save node.");
+      setData((d) => ({ ...d, nodes: d.nodes.filter((n) => n.id !== id) }));
+    }
   };
 
-  const handleAddLink = () => {
+  const handleAddLink = async () => {
     setLastError("");
     const s = newLink.source.trim();
     const t = newLink.target.trim();
@@ -356,16 +395,43 @@ export default function RelationshipMap() {
       return;
     }
     const id = `e_${Date.now().toString(36)}`;
-    setData((d) => ({ ...d, links: [...d.links, { id, source: s, target: t, type: newLink.type }] }));
+    const link = { id, source: s, target: t, type: newLink.type };
+    setData((d) => ({ ...d, links: [...d.links, link] }));
+    try {
+      const res = await fetch(`${API_URL}/links`, {
+        method: "POST",
+        headers: API_HEADERS,
+        body: JSON.stringify(link),
+      });
+      if (!res.ok) throw new Error('req failed');
+    } catch (err) {
+      setLastError("Failed to save link.");
+      setData((d) => ({ ...d, links: d.links.filter((l) => l.id !== id) }));
+    }
   };
 
   // Save notes for focused node
-  const saveFocusedNotes = () => {
+  const saveFocusedNotes = async () => {
     if (!focused) return;
+    const prev = nodesById.get(focused)?.description || "";
     setData((d) => ({
       ...d,
       nodes: d.nodes.map((n) => (n.id === focused ? { ...n, description: focusedNotes } : n)),
     }));
+    try {
+      const res = await fetch(`${API_URL}/nodes/${focused}`, {
+        method: "PATCH",
+        headers: API_HEADERS,
+        body: JSON.stringify({ description: focusedNotes }),
+      });
+      if (!res.ok) throw new Error('req failed');
+    } catch (err) {
+      setLastError("Failed to save notes.");
+      setData((d) => ({
+        ...d,
+        nodes: d.nodes.map((n) => (n.id === focused ? { ...n, description: prev } : n)),
+      }));
+    }
   };
 
   // Keep textarea in sync when focus changes
