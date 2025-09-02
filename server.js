@@ -1,9 +1,9 @@
 const express = require('express');
-const fs = require('fs').promises;
 const path = require('path');
+const sqlite3 = require('sqlite3').verbose();
 const app = express();
 
-const DATA_PATH = path.join(__dirname, 'data.json');
+const DB_PATH = path.join(__dirname, 'data.db');
 const API_KEY = process.env.API_KEY || 'dev-key';
 
 app.use(express.json());
@@ -26,31 +26,62 @@ function auth(req, res, next) {
 
 app.use(auth);
 
-async function readData() {
-  const raw = await fs.readFile(DATA_PATH, 'utf8');
-  return JSON.parse(raw);
+const db = new sqlite3.Database(DB_PATH);
+db.serialize(() => {
+  db.run(`CREATE TABLE IF NOT EXISTS nodes (
+    id TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    "group" TEXT NOT NULL,
+    x REAL NOT NULL,
+    y REAL NOT NULL,
+    description TEXT DEFAULT '',
+    avatar TEXT
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS links (
+    id TEXT PRIMARY KEY,
+    source TEXT NOT NULL,
+    target TEXT NOT NULL,
+    type TEXT DEFAULT 'solid'
+  )`);
+});
+
+function dbAll(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => (err ? reject(err) : resolve(rows)));
+  });
 }
-async function writeData(data) {
-  await fs.writeFile(DATA_PATH, JSON.stringify(data, null, 2));
+function dbRun(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, function (err) {
+      if (err) reject(err);
+      else resolve(this);
+    });
+  });
 }
 
 app.get('/map', async (req, res) => {
-  const data = await readData();
-  res.json(data);
+  const nodes = await dbAll('SELECT id, label, "group" as "group", x, y, description, avatar FROM nodes');
+  const links = await dbAll('SELECT id, source, target, type FROM links');
+  res.json({ nodes, links });
 });
 
 app.post('/nodes', async (req, res) => {
   const { id, label, group, x, y, description = '', avatar = null } = req.body || {};
   if (!id || !label || !group || typeof x !== 'number' || typeof y !== 'number') {
     return res.status(400).json({ error: 'id, label, group, x, y required' });
+    }
+  try {
+    await dbRun(
+      'INSERT INTO nodes (id, label, "group", x, y, description, avatar) VALUES (?,?,?,?,?,?,?)',
+      [id, label, group, x, y, description, avatar]
+    );
+    res.status(201).json({ ok: true });
+  } catch (err) {
+    if (err && err.code === 'SQLITE_CONSTRAINT_PRIMARYKEY') {
+      return res.status(409).json({ error: 'Node exists' });
+    }
+    throw err;
   }
-  const data = await readData();
-  if (data.nodes.some((n) => n.id === id)) {
-    return res.status(409).json({ error: 'Node exists' });
-  }
-  data.nodes.push({ id, label, group, x, y, description, avatar });
-  await writeData(data);
-  res.status(201).json({ ok: true });
 });
 
 app.post('/links', async (req, res) => {
@@ -58,27 +89,28 @@ app.post('/links', async (req, res) => {
   if (!id || !source || !target) {
     return res.status(400).json({ error: 'id, source, target required' });
   }
-  const data = await readData();
-  if (data.links.some((l) => l.id === id)) {
-    return res.status(409).json({ error: 'Link exists' });
+  try {
+    await dbRun(
+      'INSERT INTO links (id, source, target, type) VALUES (?,?,?,?)',
+      [id, source, target, type]
+    );
+    res.status(201).json({ ok: true });
+  } catch (err) {
+    if (err && err.code === 'SQLITE_CONSTRAINT_PRIMARYKEY') {
+      return res.status(409).json({ error: 'Link exists' });
+    }
+    throw err;
   }
-  data.links.push({ id, source, target, type });
-  await writeData(data);
-  res.status(201).json({ ok: true });
 });
 
 app.patch('/nodes/:id', async (req, res) => {
   const { description = '' } = req.body || {};
-  const data = await readData();
-  const node = data.nodes.find((n) => n.id === req.params.id);
-  if (!node) {
+  const result = await dbRun('UPDATE nodes SET description = ? WHERE id = ?', [description, req.params.id]);
+  if (result.changes === 0) {
     return res.status(404).json({ error: 'Node not found' });
   }
-  node.description = description;
-  await writeData(data);
   res.json({ ok: true });
 });
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`API running on port ${port}`));
-
