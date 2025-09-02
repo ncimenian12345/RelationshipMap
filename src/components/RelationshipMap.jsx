@@ -26,7 +26,10 @@ const avatarPool = [
 ];
 const randomAvatar = () => avatarPool[Math.floor(Math.random() * avatarPool.length)];
 
-const API_URL = "http://localhost:3000";
+// Base URL for API calls. Can be overridden with Vite's `VITE_API_URL` env var.
+// Falls back to relative paths when not provided so the frontend can talk to a
+// colocated backend in production environments.
+const API_URL = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 const API_HEADERS = {
   "Content-Type": "application/json",
   Authorization: "Bearer dev-key",
