@@ -279,7 +279,8 @@ export default function RelationshipMap() {
   };
 
   useEffect(() => {
-    fitToContent();
+    const id = requestAnimationFrame(() => fitToContent());
+    return () => cancelAnimationFrame(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
