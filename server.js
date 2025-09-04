@@ -1,9 +1,10 @@
 const express = require('express');
-const path = require('path');
-const sqlite3 = require('sqlite3').verbose();
+const { MongoClient } = require('mongodb');
 const app = express();
 
-const DB_PATH = path.join(__dirname, 'data.db');
+const MONGO_URI =
+  process.env.MONGO_URI ||
+  'mongodb+srv://ncimenian12345_db_user:DolJcDnUSJ9l8Tqr@cluster0.et8ozd5.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
 const API_KEY = process.env.API_KEY || 'dev-key';
 
 app.use(express.json());
@@ -26,42 +27,22 @@ function auth(req, res, next) {
 
 app.use(auth);
 
-const db = new sqlite3.Database(DB_PATH);
-db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS nodes (
-    id TEXT PRIMARY KEY,
-    label TEXT NOT NULL,
-    "group" TEXT NOT NULL,
-    x REAL NOT NULL,
-    y REAL NOT NULL,
-    description TEXT DEFAULT '',
-    avatar TEXT
-  )`);
-  db.run(`CREATE TABLE IF NOT EXISTS links (
-    id TEXT PRIMARY KEY,
-    source TEXT NOT NULL,
-    target TEXT NOT NULL,
-    type TEXT DEFAULT 'solid'
-  )`);
-});
+let nodesCollection;
+let linksCollection;
 
-function dbAll(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => (err ? reject(err) : resolve(rows)));
-  });
-}
-function dbRun(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function (err) {
-      if (err) reject(err);
-      else resolve(this);
-    });
-  });
+async function initDb() {
+  const client = new MongoClient(MONGO_URI);
+  await client.connect();
+  const db = client.db('relationshipMap');
+  nodesCollection = db.collection('nodes');
+  linksCollection = db.collection('links');
+  await nodesCollection.createIndex({ id: 1 }, { unique: true });
+  await linksCollection.createIndex({ id: 1 }, { unique: true });
 }
 
 app.get('/map', async (req, res) => {
-  const nodes = await dbAll('SELECT id, label, "group" as "group", x, y, description, avatar FROM nodes');
-  const links = await dbAll('SELECT id, source, target, type FROM links');
+  const nodes = await nodesCollection.find({}, { projection: { _id: 0 } }).toArray();
+  const links = await linksCollection.find({}, { projection: { _id: 0 } }).toArray();
   res.json({ nodes, links });
 });
 
@@ -69,15 +50,12 @@ app.post('/nodes', async (req, res) => {
   const { id, label, group, x, y, description = '', avatar = null } = req.body || {};
   if (!id || !label || !group || typeof x !== 'number' || typeof y !== 'number') {
     return res.status(400).json({ error: 'id, label, group, x, y required' });
-    }
+  }
   try {
-    await dbRun(
-      'INSERT INTO nodes (id, label, "group", x, y, description, avatar) VALUES (?,?,?,?,?,?,?)',
-      [id, label, group, x, y, description, avatar]
-    );
+    await nodesCollection.insertOne({ id, label, group, x, y, description, avatar });
     res.status(201).json({ ok: true });
   } catch (err) {
-    if (err && err.code === 'SQLITE_CONSTRAINT_PRIMARYKEY') {
+    if (err && err.code === 11000) {
       return res.status(409).json({ error: 'Node exists' });
     }
     throw err;
@@ -90,13 +68,10 @@ app.post('/links', async (req, res) => {
     return res.status(400).json({ error: 'id, source, target required' });
   }
   try {
-    await dbRun(
-      'INSERT INTO links (id, source, target, type) VALUES (?,?,?,?)',
-      [id, source, target, type]
-    );
+    await linksCollection.insertOne({ id, source, target, type });
     res.status(201).json({ ok: true });
   } catch (err) {
-    if (err && err.code === 'SQLITE_CONSTRAINT_PRIMARYKEY') {
+    if (err && err.code === 11000) {
       return res.status(409).json({ error: 'Link exists' });
     }
     throw err;
@@ -105,12 +80,23 @@ app.post('/links', async (req, res) => {
 
 app.patch('/nodes/:id', async (req, res) => {
   const { description = '' } = req.body || {};
-  const result = await dbRun('UPDATE nodes SET description = ? WHERE id = ?', [description, req.params.id]);
-  if (result.changes === 0) {
+  const result = await nodesCollection.updateOne(
+    { id: req.params.id },
+    { $set: { description } }
+  );
+  if (result.matchedCount === 0) {
     return res.status(404).json({ error: 'Node not found' });
   }
   res.json({ ok: true });
 });
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`API running on port ${port}`));
+async function start() {
+  await initDb();
+  const port = process.env.PORT || 3000;
+  app.listen(port, () => console.log(`API running on port ${port}`));
+}
+
+start().catch((err) => {
+  console.error('Failed to start server', err);
+  process.exit(1);
+});
