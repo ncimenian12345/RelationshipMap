@@ -5,7 +5,7 @@ const { MongoClient } = require('mongodb');
 const DATA_PATH = path.join(__dirname, '..', 'data.json');
 const MONGO_URI =
   process.env.MONGO_URI ||
-  'mongodb+srv://ncimenian12345_db_user:DolJcDnUSJ9l8Tqr@cluster0.et8ozd5.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
+  'mongodb+srv://ncimenian12345_db_user:sBa3awsGFBhALWJN@cluster0.et8ozd5.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
 
 async function main() {
   const raw = await fs.readFile(DATA_PATH, 'utf8');
