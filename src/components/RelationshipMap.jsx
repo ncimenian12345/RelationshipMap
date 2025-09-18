@@ -12,19 +12,29 @@ import React, { useRef, useState, useEffect, useMemo } from "react";
 
 // ---------------- Avatar Pool ----------------
 // Put your images in `public/avatars/*.jpeg` (Vite/CRA will serve from "/avatars/...\")
-const avatarPool = [
-  "/avatars/main-guy.jpeg",
-  "/avatars/ari.jpeg",
-  "/avatars/moe.jpeg",
-  "/avatars/ned.jpeg",
-  "/avatars/lee.jpeg",
-  "/avatars/ivy.jpeg",
-  "/avatars/bud.jpeg",
-  "/avatars/ada.jpeg",
-  "/avatars/bo.jpeg",
-  "/avatars/cy.jpeg",
-];
-const randomAvatar = () => avatarPool[Math.floor(Math.random() * avatarPool.length)];
+const defaultAvatarById = {
+  main: "/avatars/main-guy.jpeg",
+  t1: "/avatars/ari.jpeg",
+  t2: "/avatars/moe.jpeg",
+  t3: "/avatars/ned.jpeg",
+  t4: "/avatars/lee.jpeg",
+  p1: "/avatars/ivy.jpeg",
+  p2: "/avatars/bud.jpeg",
+  s1: "/avatars/ada.jpeg",
+  s2: "/avatars/bo.jpeg",
+  s3: "/avatars/cy.jpeg",
+};
+
+const avatarPool = Array.from(new Set(Object.values(defaultAvatarById)));
+const randomAvatar = () =>
+  avatarPool.length > 0 ? avatarPool[Math.floor(Math.random() * avatarPool.length)] : null;
+
+const resolveAvatar = (node) => {
+  if (typeof node?.avatar === "string" && node.avatar.trim()) {
+    return node.avatar.trim();
+  }
+  return defaultAvatarById[node?.id] || randomAvatar();
+};
 
 // Base URL for API calls. Can be overridden with Vite's `VITE_API_URL` env var.
 // Falls back to relative paths when not provided so the frontend can talk to a
@@ -44,16 +54,97 @@ const demo = {
     main: { label: "The Main Guy", color: "#9B7DFF" },
   },
   nodes: [
-    { id: "main", label: "The Main Guy", group: "main", x: 400, y: 340, r: 56, description: "" },
-    { id: "t1", label: "Ari", group: "team", x: 160, y: 145, description: "" },
-    { id: "t2", label: "Moe", group: "team", x: 230, y: 170, description: "" },
-    { id: "t3", label: "Ned", group: "team", x: 300, y: 160, description: "" },
-    { id: "t4", label: "Lee", group: "team", x: 90, y: 240, description: "" },
-    { id: "p1", label: "Ivy", group: "planters", x: 660, y: 210, description: "" },
-    { id: "p2", label: "Bud", group: "planters", x: 700, y: 340, description: "" },
-    { id: "s1", label: "Ada", group: "scientists", x: 220, y: 520, description: "" },
-    { id: "s2", label: "Bo", group: "scientists", x: 120, y: 620, description: "" },
-    { id: "s3", label: "Cy", group: "scientists", x: 360, y: 610, description: "" },
+    {
+      id: "main",
+      label: "The Main Guy",
+      group: "main",
+      x: 400,
+      y: 340,
+      r: 56,
+      description: "",
+      avatar: defaultAvatarById.main,
+    },
+    {
+      id: "t1",
+      label: "Ari",
+      group: "team",
+      x: 160,
+      y: 145,
+      description: "",
+      avatar: defaultAvatarById.t1,
+    },
+    {
+      id: "t2",
+      label: "Moe",
+      group: "team",
+      x: 230,
+      y: 170,
+      description: "",
+      avatar: defaultAvatarById.t2,
+    },
+    {
+      id: "t3",
+      label: "Ned",
+      group: "team",
+      x: 300,
+      y: 160,
+      description: "",
+      avatar: defaultAvatarById.t3,
+    },
+    {
+      id: "t4",
+      label: "Lee",
+      group: "team",
+      x: 90,
+      y: 240,
+      description: "",
+      avatar: defaultAvatarById.t4,
+    },
+    {
+      id: "p1",
+      label: "Ivy",
+      group: "planters",
+      x: 660,
+      y: 210,
+      description: "",
+      avatar: defaultAvatarById.p1,
+    },
+    {
+      id: "p2",
+      label: "Bud",
+      group: "planters",
+      x: 700,
+      y: 340,
+      description: "",
+      avatar: defaultAvatarById.p2,
+    },
+    {
+      id: "s1",
+      label: "Ada",
+      group: "scientists",
+      x: 220,
+      y: 520,
+      description: "",
+      avatar: defaultAvatarById.s1,
+    },
+    {
+      id: "s2",
+      label: "Bo",
+      group: "scientists",
+      x: 120,
+      y: 620,
+      description: "",
+      avatar: defaultAvatarById.s2,
+    },
+    {
+      id: "s3",
+      label: "Cy",
+      group: "scientists",
+      x: 360,
+      y: 610,
+      description: "",
+      avatar: defaultAvatarById.s3,
+    },
   ],
   links: [
     { id: "l1", source: "t1", target: "main", type: "dashed" },
@@ -65,6 +156,12 @@ const demo = {
     { id: "l7", source: "s1", target: "main", type: "dashed" },
   ],
 };
+
+const applyNodeDefaults = (node = {}) => ({
+  ...node,
+  avatar: resolveAvatar(node),
+  description: typeof node.description === "string" ? node.description : "",
+});
 
 // ---------------- Utilities ----------------
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
@@ -240,21 +337,13 @@ export default function RelationshipMap() {
         const json = await res.json();
         setData({
           ...json,
-          nodes: json.nodes.map((n) => ({
-            ...n,
-            avatar: n.avatar || randomAvatar(),
-            description: n.description || '',
-          })),
+          nodes: Array.isArray(json.nodes) ? json.nodes.map(applyNodeDefaults) : [],
         });
         setTimeout(fitToContent, 0);
       } catch (e) {
         setData({
           ...demo,
-          nodes: demo.nodes.map((n) => ({
-            ...n,
-            avatar: n.avatar || randomAvatar(),
-            description: n.description || '',
-          })),
+          nodes: demo.nodes.map(applyNodeDefaults),
         });
         setTimeout(fitToContent, 0);
       }
