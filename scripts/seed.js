@@ -1,55 +1,126 @@
-const fs = require('fs').promises;
+const fs = require('fs/promises');
 const path = require('path');
-const { MongoClient } = require('mongodb');
 
 const DATA_PATH = path.join(__dirname, '..', 'data.json');
-const MONGO_URI =
-  process.env.MONGO_URI ||
-  'mongodb+srv://ncimenian12345_db_user:sBa3awsGFBhALWJN@cluster0.et8ozd5.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
+
+const DEFAULT_DATA = {
+  groups: {
+    team: { label: 'The Team', color: '#5B8DEF' },
+    planters: { label: 'The Planters', color: '#44C4A1' },
+    scientists: { label: 'The Scientists', color: '#FF9171' },
+    main: { label: 'The Main Guy', color: '#9B7DFF' },
+  },
+  nodes: [
+    {
+      id: 'main',
+      label: 'The Main Guy',
+      group: 'main',
+      x: 400,
+      y: 340,
+      r: 56,
+      description: '',
+      avatar: '/avatars/main-guy.jpeg',
+    },
+    {
+      id: 't1',
+      label: 'Ari',
+      group: 'team',
+      x: 160,
+      y: 145,
+      description: '',
+      avatar: '/avatars/ari.jpeg',
+    },
+    {
+      id: 't2',
+      label: 'Moe',
+      group: 'team',
+      x: 230,
+      y: 170,
+      description: '',
+      avatar: '/avatars/moe.jpeg',
+    },
+    {
+      id: 't3',
+      label: 'Ned',
+      group: 'team',
+      x: 300,
+      y: 160,
+      description: '',
+      avatar: '/avatars/ned.jpeg',
+    },
+    {
+      id: 't4',
+      label: 'Lee',
+      group: 'team',
+      x: 90,
+      y: 240,
+      description: '',
+      avatar: '/avatars/lee.jpeg',
+    },
+    {
+      id: 'p1',
+      label: 'Ivy',
+      group: 'planters',
+      x: 660,
+      y: 210,
+      description: '',
+      avatar: '/avatars/ivy.jpeg',
+    },
+    {
+      id: 'p2',
+      label: 'Bud',
+      group: 'planters',
+      x: 700,
+      y: 340,
+      description: '',
+      avatar: '/avatars/bud.jpeg',
+    },
+    {
+      id: 's1',
+      label: 'Ada',
+      group: 'scientists',
+      x: 220,
+      y: 520,
+      description: '',
+      avatar: '/avatars/ada.jpeg',
+    },
+    {
+      id: 's2',
+      label: 'Bo',
+      group: 'scientists',
+      x: 120,
+      y: 620,
+      description: '',
+      avatar: '/avatars/bo.jpeg',
+    },
+    {
+      id: 's3',
+      label: 'Cy',
+      group: 'scientists',
+      x: 360,
+      y: 610,
+      description: '',
+      avatar: '/avatars/cy.jpeg',
+    },
+  ],
+  links: [
+    { id: 'l1', source: 't1', target: 'main', type: 'dashed' },
+    { id: 'l2', source: 't3', target: 'main', type: 'dashed' },
+    { id: 'l3', source: 't4', target: 's2', type: 'solid' },
+    { id: 'l4', source: 'p1', target: 'main', type: 'curved' },
+    { id: 'l5', source: 'p2', target: 'main', type: 'curved' },
+    { id: 'l6', source: 's1', target: 's2', type: 'solid' },
+    { id: 'l7', source: 's1', target: 'main', type: 'dashed' },
+  ],
+};
 
 async function main() {
-  const raw = await fs.readFile(DATA_PATH, 'utf8');
-  const data = JSON.parse(raw);
-
-  const client = new MongoClient(MONGO_URI);
-  await client.connect();
-  const db = client.db('relationshipMap');
-  const nodes = db.collection('nodes');
-  const links = db.collection('links');
-
-  await nodes.deleteMany({});
-  await links.deleteMany({});
-
-  if (data.nodes && data.nodes.length) {
-    await nodes.insertMany(
-      data.nodes.map((n) => ({
-        id: n.id,
-        label: n.label,
-        group: n.group,
-        x: n.x,
-        y: n.y,
-        description: n.description || '',
-        avatar: n.avatar || null,
-      }))
-    );
-  }
-
-  if (data.links && data.links.length) {
-    await links.insertMany(
-      data.links.map((l) => ({
-        id: l.id,
-        source: l.source,
-        target: l.target,
-        type: l.type || 'solid',
-      }))
-    );
-  }
-
-  await client.close();
+  const payload = JSON.stringify(DEFAULT_DATA, null, 2);
+  await fs.writeFile(DATA_PATH, `${payload}\n`);
+  console.log(`Seeded ${DATA_PATH} with default relationship data.`);
 }
 
 main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
-
