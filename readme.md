@@ -45,7 +45,9 @@ npm run dev
 > The front end expects API requests to be sent to the URL specified in the
 > `VITE_API_URL` environment variable. When running locally the default is
 > `http://localhost:3000`, but you can override this by exporting
-> `VITE_API_URL` before starting `npm run dev`.
+> `VITE_API_URL` before starting `npm run dev`. Production builds default to
+> `https://relationship-map.vercel.app` when no environment override is
+> provided.
 
 ## Usage
 
