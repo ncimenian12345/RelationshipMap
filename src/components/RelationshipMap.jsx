@@ -36,14 +36,24 @@ const resolveAvatar = (node) => {
   return defaultAvatarById[node?.id] || randomAvatar();
 };
 
-// Base URL for API calls. Can be overridden with Vite's `VITE_API_URL` env var.
-// When no env var is provided we default to the local API during dev builds so
-// `npm run dev` Just Works. In production we fall back to relative URLs so a
-// colocated backend (same origin) continues to work without configuration.
-const rawApiBase = (
-  import.meta.env.VITE_API_URL ||
-  (import.meta.env.DEV ? "http://localhost:3000" : "https://relationship-map.vercel.app")
-).trim();
+// Base URL for API calls. Always require an explicit value in production so the
+// deployed front-end talks to the correct Express API. During development we
+// continue to default to the local server for convenience.
+const envApiUrl =
+  typeof import.meta.env?.VITE_API_URL === "string" ? import.meta.env.VITE_API_URL.trim() : "";
+
+const rawApiBase = (() => {
+  if (import.meta.env.DEV) {
+    return envApiUrl || "http://localhost:3000";
+  }
+  if (envApiUrl) {
+    return envApiUrl;
+  }
+  const message =
+    "Missing VITE_API_URL environment variable. Set it to your deployed Express API origin before building.";
+  console.error(message);
+  throw new Error(message);
+})();
 const API_URL = rawApiBase.replace(/\/$/, "");
 const apiUrl = (path) => `${API_URL}${path}`;
 const API_HEADERS = {
