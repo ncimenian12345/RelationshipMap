@@ -55,7 +55,14 @@ const rawApiBase = (() => {
   throw new Error(message);
 })();
 const API_URL = rawApiBase.replace(/\/$/, "");
-const apiUrl = (path) => `${API_URL}${path}`;
+const normalizeApiPath = (path = "") => {
+  if (path == null) return "";
+  const trimmed = String(path).trim();
+  if (!trimmed) return "";
+  const sanitized = trimmed.replace(/^\/+/g, "");
+  return sanitized ? `/${sanitized}` : "/";
+};
+const apiUrl = (path) => `${API_URL}${normalizeApiPath(path)}`;
 const API_HEADERS = {
   "Content-Type": "application/json",
   Authorization: "Bearer dev-key",
@@ -784,6 +791,16 @@ export default function RelationshipMap() {
   const seen = new Set();
   for (let i = 0; i < 25; i++) seen.add(randomAvatar());
   console.assert(seen.size >= 2, "randomAvatar yields multiple values over trials");
+})();
+
+(function testNormalizeApiPath() {
+  console.assert(normalizeApiPath("map") === "/map", "normalizeApiPath adds a leading slash");
+  console.assert(normalizeApiPath("/map") === "/map", "normalizeApiPath preserves existing slashes");
+  console.assert(
+    normalizeApiPath("  nodes/123  ") === "/nodes/123",
+    "normalizeApiPath trims whitespace and leading slashes"
+  );
+  console.assert(normalizeApiPath("") === "", "normalizeApiPath returns empty string for empty input");
 })();
 
 (function testComputeFitView() {
