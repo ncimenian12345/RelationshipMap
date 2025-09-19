@@ -30,17 +30,30 @@ cd relationship-map
 npm install
 ```
 
-3. In a separate terminal, start the API server:
+3. (Optional) Seed the MongoDB database with the demo content:
+```bash
+npm run seed
+```
+
+4. Configure the API server environment variables (defaults are shown below):
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `API_KEY` | `dev-key` | Shared bearer token used by the frontend when calling the API |
+| `MONGODB_URI` | MongoDB Atlas connection string in `server.js` | Connection string for the relationship-map database |
+| `MONGODB_DB` | `relationship-map` | Database name that stores `groups`, `nodes`, and `links` |
+
+5. In a separate terminal, start the API server:
 ```bash
 npm run server
 ```
 
-4. Start the front-end development server:
+6. Start the front-end development server:
 ```bash
 npm run dev
 ```
 
-5. Open your browser and navigate to `http://localhost:5173`
+7. Open your browser and navigate to `http://localhost:5173`
 
 > The front end expects API requests to be sent to the URL specified in the
 > `VITE_API_URL` environment variable. When running locally the default is

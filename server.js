@@ -1,11 +1,25 @@
 const express = require('express');
-const fs = require('fs/promises');
-const path = require('path');
+const { MongoClient, ServerApiVersion } = require('mongodb');
 
 const app = express();
 
-const DATA_FILE = path.join(__dirname, 'data.json');
 const API_KEY = process.env.API_KEY || 'dev-key';
+const MONGODB_URI =
+  process.env.MONGODB_URI ||
+  'mongodb+srv://ncimenian12345_db_user:DolJcDnUSJ9l8Tqr@cluster0.et8ozd5.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
+const DATABASE_NAME = process.env.MONGODB_DB || 'relationship-map';
+
+const client = new MongoClient(MONGODB_URI, {
+  serverApi: {
+    version: ServerApiVersion.v1,
+    strict: true,
+    deprecationErrors: true,
+  },
+});
+
+let db;
+let connectPromise;
+let shuttingDown = false;
 
 app.use(express.json());
 app.use((req, res, next) => {
@@ -27,15 +41,26 @@ function auth(req, res, next) {
 
 app.use(auth);
 
-class HttpError extends Error {
-  constructor(status, message) {
-    super(message);
-    this.status = status;
+async function getDb() {
+  if (db) {
+    return db;
   }
+  if (!connectPromise) {
+    connectPromise = (async () => {
+      await client.connect();
+      await client.db('admin').command({ ping: 1 });
+      console.log('Pinged your deployment. You successfully connected to MongoDB!');
+      db = client.db(DATABASE_NAME);
+      return db;
+    })();
+  }
+  return connectPromise;
 }
 
-let state = { groups: {}, nodes: [], links: [] };
-let persistQueue = Promise.resolve();
+async function getCollection(name) {
+  const database = await getDb();
+  return database.collection(name);
+}
 
 const toFiniteNumber = (value) => {
   const num = Number(value);
@@ -82,59 +107,100 @@ function normalizeLink(link) {
   return { id, source, target, type };
 }
 
-function normalizeState(raw) {
-  const groups = raw && typeof raw.groups === 'object' && raw.groups !== null ? raw.groups : {};
-  const nodes = Array.isArray(raw?.nodes)
-    ? raw.nodes.map(normalizeNode).filter(Boolean)
-    : [];
-  const links = Array.isArray(raw?.links)
-    ? raw.links.map(normalizeLink).filter(Boolean)
-    : [];
-  return { groups, nodes, links };
-}
-
-async function writeState(next) {
-  const payload = JSON.stringify(next, null, 2);
-  await fs.writeFile(DATA_FILE, `${payload}\n`);
-  state = next;
-}
-
-function enqueueMutation(mutator) {
-  let result;
-  const op = persistQueue
-    .catch((err) => {
-      console.error('Previous persistence operation failed', err);
-    })
-    .then(async () => {
-      const { next, value } = await mutator(state);
-      if (!next || typeof next !== 'object') {
-        throw new Error('Mutation must return an object with a `next` state');
-      }
-      await writeState(next);
-      result = value;
-    });
-  persistQueue = op;
-  return op.then(() => result);
-}
-
-async function loadState() {
-  try {
-    const raw = await fs.readFile(DATA_FILE, 'utf8');
-    const parsed = JSON.parse(raw);
-    state = normalizeState(parsed);
-  } catch (err) {
-    if (err && err.code === 'ENOENT') {
-      state = { groups: {}, nodes: [], links: [] };
-      await writeState(state);
-    } else {
-      console.error('Failed to load data file', err);
-      throw err;
-    }
+function formatGroupDocument(doc) {
+  const id = sanitizeString(doc?._id ?? '');
+  const label = sanitizeString(doc?.label ?? '');
+  const color = sanitizeString(doc?.color ?? '');
+  if (!id || !label) {
+    return null;
   }
+  const group = { label };
+  if (color) {
+    group.color = color;
+  }
+  return [id, group];
 }
 
-app.get('/map', (req, res) => {
-  res.json(state);
+function formatNodeDocument(doc) {
+  if (!doc) {
+    return null;
+  }
+  const normalized = normalizeNode({
+    ...doc,
+    id: doc._id,
+  });
+  if (!normalized) {
+    return null;
+  }
+  return normalized;
+}
+
+function formatLinkDocument(doc) {
+  if (!doc) {
+    return null;
+  }
+  const normalized = normalizeLink({
+    ...doc,
+    id: doc._id,
+  });
+  if (!normalized) {
+    return null;
+  }
+  return normalized;
+}
+
+function toNodeDocument(node) {
+  const document = {
+    _id: node.id,
+    label: node.label,
+    group: node.group,
+    x: node.x,
+    y: node.y,
+    description: node.description,
+  };
+  if (Object.prototype.hasOwnProperty.call(node, 'r')) {
+    document.r = node.r;
+  }
+  if (node.avatar) {
+    document.avatar = node.avatar;
+  }
+  return document;
+}
+
+function toLinkDocument(link) {
+  return {
+    _id: link.id,
+    source: link.source,
+    target: link.target,
+    type: link.type,
+  };
+}
+
+app.get('/map', async (req, res) => {
+  try {
+    const database = await getDb();
+    const [groupDocs, nodeDocs, linkDocs] = await Promise.all([
+      database.collection('groups').find({}).toArray(),
+      database.collection('nodes').find({}).toArray(),
+      database.collection('links').find({}).toArray(),
+    ]);
+
+    const groups = {};
+    for (const doc of groupDocs) {
+      const entry = formatGroupDocument(doc);
+      if (!entry) continue;
+      const [groupId, group] = entry;
+      groups[groupId] = group;
+    }
+
+    const nodes = nodeDocs.map(formatNodeDocument).filter(Boolean);
+    const links = linkDocs.map(formatLinkDocument).filter(Boolean);
+
+    res.json({ groups, nodes, links });
+  } catch (err) {
+    console.error('Failed to load map data', err);
+    res.status(500).json({ error: 'Failed to load map data' });
+  }
 });
 
 app.post('/nodes', async (req, res) => {
@@ -169,21 +235,16 @@ app.post('/nodes', async (req, res) => {
     node.r = r;
   }
   try {
-    await enqueueMutation((current) => {
-      if (current.nodes.some((n) => n.id === node.id)) {
-        throw new HttpError(409, 'Node exists');
-      }
-      return {
-        next: {
-          ...current,
-          nodes: [...current.nodes, node],
-        },
-      };
-    });
+    const nodesCollection = await getCollection('nodes');
+    const existing = await nodesCollection.findOne({ _id: node.id });
+    if (existing) {
+      return res.status(409).json({ error: 'Node exists' });
+    }
+    await nodesCollection.insertOne(toNodeDocument(node));
     res.status(201).json({ ok: true });
   } catch (err) {
-    if (err instanceof HttpError) {
-      return res.status(err.status).json({ error: err.message });
+    if (err && err.code === 11000) {
+      return res.status(409).json({ error: 'Node exists' });
     }
     console.error('Failed to save node', err);
     res.status(500).json({ error: 'Failed to save node' });
@@ -205,21 +266,16 @@ app.post('/links', async (req, res) => {
     return res.status(400).json({ error: 'id, source, target required' });
   }
   try {
-    await enqueueMutation((current) => {
-      if (current.links.some((l) => l.id === link.id)) {
-        throw new HttpError(409, 'Link exists');
-      }
-      return {
-        next: {
-          ...current,
-          links: [...current.links, link],
-        },
-      };
-    });
+    const linksCollection = await getCollection('links');
+    const existing = await linksCollection.findOne({ _id: link.id });
+    if (existing) {
+      return res.status(409).json({ error: 'Link exists' });
+    }
+    await linksCollection.insertOne(toLinkDocument(link));
     res.status(201).json({ ok: true });
   } catch (err) {
-    if (err instanceof HttpError) {
-      return res.status(err.status).json({ error: err.message });
+    if (err && err.code === 11000) {
+      return res.status(409).json({ error: 'Link exists' });
     }
     console.error('Failed to save link', err);
     res.status(500).json({ error: 'Failed to save link' });
@@ -229,37 +285,54 @@ app.post('/links', async (req, res) => {
 app.patch('/nodes/:id', async (req, res) => {
   const description = typeof req.body?.description === 'string' ? req.body.description : '';
   try {
-    await enqueueMutation((current) => {
-      const idx = current.nodes.findIndex((n) => n.id === req.params.id);
-      if (idx === -1) {
-        throw new HttpError(404, 'Node not found');
-      }
-      const nodes = current.nodes.slice();
-      nodes[idx] = { ...nodes[idx], description };
-      return {
-        next: {
-          ...current,
-          nodes,
-        },
-      };
-    });
+    const nodesCollection = await getCollection('nodes');
+    const result = await nodesCollection.updateOne(
+      { _id: req.params.id },
+      { $set: { description } }
+    );
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: 'Node not found' });
+    }
     res.json({ ok: true });
   } catch (err) {
-    if (err instanceof HttpError) {
-      return res.status(err.status).json({ error: err.message });
-    }
     console.error('Failed to update node', err);
     res.status(500).json({ error: 'Failed to update node' });
   }
 });
 
 async function start() {
-  await loadState();
+  await getDb();
   const port = process.env.PORT || 3000;
   app.listen(port, () => console.log(`API running on port ${port}`));
 }
 
 start().catch((err) => {
   console.error('Failed to start server', err);
-  process.exit(1);
+  client
+    .close()
+    .catch((closeErr) => {
+      console.error('Error closing MongoDB client during shutdown', closeErr);
+    })
+    .finally(() => {
+      process.exit(1);
+    });
+});
+
+async function shutdown(signal) {
+  if (shuttingDown) {
+    return;
+  }
+  shuttingDown = true;
+  try {
+    await client.close();
+    console.log(`MongoDB client closed after ${signal}`);
+  } catch (err) {
+    console.error('Error closing MongoDB client', err);
+  } finally {
+    process.exit(0);
+  }
+}
+
+['SIGINT', 'SIGTERM'].forEach((signal) => {
+  process.on(signal, () => shutdown(signal));
 });

@@ -1,7 +1,24 @@
-const fs = require('fs/promises');
-const path = require('path');
+const { MongoClient, ServerApiVersion } = require('mongodb');
 
-const DATA_PATH = path.join(__dirname, '..', 'data.json');
+const MONGODB_URI =
+  process.env.MONGODB_URI ||
+  'mongodb+srv://ncimenian12345_db_user:DolJcDnUSJ9l8Tqr@cluster0.et8ozd5.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
+const DATABASE_NAME = process.env.MONGODB_DB || 'relationship-map';
+
+const client = new MongoClient(MONGODB_URI, {
+  serverApi: {
+    version: ServerApiVersion.v1,
+    strict: true,
+    deprecationErrors: true,
+  },
+});
+
+const toFiniteNumber = (value) => {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+};
+
+const sanitizeString = (value) => (typeof value === 'string' ? value.trim() : '');
 
 const DEFAULT_DATA = {
   groups: {
@@ -115,12 +132,95 @@ const DEFAULT_DATA = {
 };
 
 async function main() {
-  const payload = JSON.stringify(DEFAULT_DATA, null, 2);
-  await fs.writeFile(DATA_PATH, `${payload}\n`);
-  console.log(`Seeded ${DATA_PATH} with default relationship data.`);
+  await client.connect();
+  try {
+    await client.db('admin').command({ ping: 1 });
+    console.log('Pinged your deployment. You successfully connected to MongoDB!');
+
+    const database = client.db(DATABASE_NAME);
+    const groupsCollection = database.collection('groups');
+    const nodesCollection = database.collection('nodes');
+    const linksCollection = database.collection('links');
+
+    const groupDocs = Object.entries(DEFAULT_DATA.groups).reduce((docs, [id, value]) => {
+      const groupId = sanitizeString(id);
+      const label = sanitizeString(value?.label);
+      if (!groupId || !label) {
+        return docs;
+      }
+      const group = { _id: groupId, label };
+      const color = sanitizeString(value?.color);
+      if (color) {
+        group.color = color;
+      }
+      docs.push(group);
+      return docs;
+    }, []);
+
+    const nodeDocs = DEFAULT_DATA.nodes.reduce((docs, node) => {
+      const id = sanitizeString(node?.id);
+      const label = sanitizeString(node?.label);
+      const group = sanitizeString(node?.group);
+      const x = toFiniteNumber(node?.x);
+      const y = toFiniteNumber(node?.y);
+      if (!id || !label || !group || x === null || y === null) {
+        return docs;
+      }
+      const doc = {
+        _id: id,
+        label,
+        group,
+        x,
+        y,
+        description: typeof node?.description === 'string' ? node.description : '',
+      };
+      const radius = toFiniteNumber(node?.r);
+      if (radius !== null) {
+        doc.r = radius;
+      }
+      const avatar = sanitizeString(node?.avatar);
+      if (avatar) {
+        doc.avatar = avatar;
+      }
+      docs.push(doc);
+      return docs;
+    }, []);
+
+    const linkDocs = DEFAULT_DATA.links.reduce((docs, link) => {
+      const id = sanitizeString(link?.id);
+      const source = sanitizeString(link?.source);
+      const target = sanitizeString(link?.target);
+      if (!id || !source || !target) {
+        return docs;
+      }
+      const type = sanitizeString(link?.type) || 'solid';
+      docs.push({ _id: id, source, target, type });
+      return docs;
+    }, []);
+
+    await Promise.all([
+      groupsCollection.deleteMany({}),
+      nodesCollection.deleteMany({}),
+      linksCollection.deleteMany({}),
+    ]);
+
+    if (groupDocs.length) {
+      await groupsCollection.insertMany(groupDocs);
+    }
+    if (nodeDocs.length) {
+      await nodesCollection.insertMany(nodeDocs);
+    }
+    if (linkDocs.length) {
+      await linksCollection.insertMany(linkDocs);
+    }
+
+    console.log(`Seeded MongoDB database "${DATABASE_NAME}" with default relationship data.`);
+  } finally {
+    await client.close();
+  }
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error('Failed to seed MongoDB with default relationship data.', err);
   process.exit(1);
 });
