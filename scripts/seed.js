@@ -1,7 +1,7 @@
-const fs = require('fs/promises');
-const path = require('path');
+const { MongoClient } = require('mongodb');
 
-const DATA_PATH = path.join(__dirname, '..', 'data.json');
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017';
+const MONGODB_DB = process.env.MONGODB_DB || 'relationship-map';
 
 const DEFAULT_DATA = {
   groups: {
@@ -115,9 +115,49 @@ const DEFAULT_DATA = {
 };
 
 async function main() {
-  const payload = JSON.stringify(DEFAULT_DATA, null, 2);
-  await fs.writeFile(DATA_PATH, `${payload}\n`);
-  console.log(`Seeded ${DATA_PATH} with default relationship data.`);
+  const client = new MongoClient(MONGODB_URI);
+  await client.connect();
+
+  try {
+    const db = client.db(MONGODB_DB);
+    const groups = db.collection('groups');
+    const nodes = db.collection('nodes');
+    const links = db.collection('links');
+
+    await Promise.all([
+      groups.deleteMany({}),
+      nodes.deleteMany({}),
+      links.deleteMany({}),
+    ]);
+
+    const groupDocs = Object.entries(DEFAULT_DATA.groups).map(([id, value]) => ({
+      _id: id,
+      ...value,
+    }));
+    if (groupDocs.length) {
+      await groups.insertMany(groupDocs);
+    }
+
+    const nodeDocs = DEFAULT_DATA.nodes.map(({ id, ...rest }) => ({
+      _id: id,
+      ...rest,
+    }));
+    if (nodeDocs.length) {
+      await nodes.insertMany(nodeDocs);
+    }
+
+    const linkDocs = DEFAULT_DATA.links.map(({ id, ...rest }) => ({
+      _id: id,
+      ...rest,
+    }));
+    if (linkDocs.length) {
+      await links.insertMany(linkDocs);
+    }
+
+    console.log(`Seeded MongoDB database "${MONGODB_DB}" with demo relationship data.`);
+  } finally {
+    await client.close();
+  }
 }
 
 main().catch((err) => {

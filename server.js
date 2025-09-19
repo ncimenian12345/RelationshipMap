@@ -1,11 +1,11 @@
 const express = require('express');
-const fs = require('fs/promises');
-const path = require('path');
+const { MongoClient } = require('mongodb');
 
 const app = express();
 
-const DATA_FILE = path.join(__dirname, 'data.json');
 const API_KEY = process.env.API_KEY || 'dev-key';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017';
+const MONGODB_DB = process.env.MONGODB_DB || 'relationship-map';
 
 app.use(express.json());
 app.use((req, res, next) => {
@@ -34,107 +34,106 @@ class HttpError extends Error {
   }
 }
 
-let state = { groups: {}, nodes: [], links: [] };
-let persistQueue = Promise.resolve();
+const client = new MongoClient(MONGODB_URI);
+let collectionsPromise;
 
-const toFiniteNumber = (value) => {
-  const num = Number(value);
-  return Number.isFinite(num) ? num : null;
+function getCollections() {
+  if (!collectionsPromise) {
+    collectionsPromise = client
+      .connect()
+      .then(() => {
+        const db = client.db(MONGODB_DB);
+        return {
+          groups: db.collection('groups'),
+          nodes: db.collection('nodes'),
+          links: db.collection('links'),
+        };
+      })
+      .catch((err) => {
+        collectionsPromise = null;
+        throw err;
+      });
+  }
+  return collectionsPromise;
+}
+
+const documentToNode = (doc) => {
+  if (!doc) return null;
+  const { _id, ...rest } = doc;
+  return { id: _id, ...rest };
 };
 
-const sanitizeString = (value) => (typeof value === 'string' ? value.trim() : '');
+const documentToLink = (doc) => {
+  if (!doc) return null;
+  const { _id, ...rest } = doc;
+  return { id: _id, ...rest };
+};
 
-function normalizeNode(node) {
-  const id = sanitizeString(node?.id ?? '');
-  const label = sanitizeString(node?.label ?? '');
-  const group = sanitizeString(node?.group ?? '');
-  const x = toFiniteNumber(node?.x);
-  const y = toFiniteNumber(node?.y);
-  if (!id || !label || !group || x === null || y === null) {
-    return null;
+async function fetchMapData() {
+  const { groups, nodes, links } = await getCollections();
+  const [groupDocs, nodeDocs, linkDocs] = await Promise.all([
+    groups.find({}).toArray(),
+    nodes.find({}).toArray(),
+    links.find({}).toArray(),
+  ]);
+
+  const groupsMap = {};
+  for (const doc of groupDocs) {
+    if (!doc || typeof doc._id !== 'string') continue;
+    const { _id, ...rest } = doc;
+    groupsMap[_id] = rest;
   }
-  const normalized = {
-    id,
-    label,
-    group,
-    x,
-    y,
-    description: typeof node?.description === 'string' ? node.description : '',
+
+  return {
+    groups: groupsMap,
+    nodes: nodeDocs.map(documentToNode).filter(Boolean),
+    links: linkDocs.map(documentToLink).filter(Boolean),
   };
-  const r = toFiniteNumber(node?.r);
-  if (r !== null) {
-    normalized.r = r;
+}
+
+async function insertNode(node) {
+  const { nodes } = await getCollections();
+  await nodes.insertOne({
+    _id: node.id,
+    label: node.label,
+    group: node.group,
+    x: node.x,
+    y: node.y,
+    description: node.description,
+    ...(typeof node.avatar === 'string' && node.avatar ? { avatar: node.avatar } : {}),
+    ...(Number.isFinite(node.r) ? { r: node.r } : {}),
+  });
+}
+
+async function insertLink(link) {
+  const { links } = await getCollections();
+  await links.insertOne({
+    _id: link.id,
+    source: link.source,
+    target: link.target,
+    type: link.type,
+  });
+}
+
+async function updateNodeDescription(id, description) {
+  const { nodes } = await getCollections();
+  const result = await nodes.updateOne(
+    { _id: id },
+    { $set: { description } }
+  );
+  if (result.matchedCount === 0) {
+    throw new HttpError(404, 'Node not found');
   }
-  if (typeof node?.avatar === 'string' && node.avatar.trim()) {
-    normalized.avatar = node.avatar.trim();
-  }
-  return normalized;
 }
 
-function normalizeLink(link) {
-  const id = sanitizeString(link?.id ?? '');
-  const source = sanitizeString(link?.source ?? '');
-  const target = sanitizeString(link?.target ?? '');
-  if (!id || !source || !target) {
-    return null;
-  }
-  const type = sanitizeString(link?.type ?? '') || 'solid';
-  return { id, source, target, type };
-}
-
-function normalizeState(raw) {
-  const groups = raw && typeof raw.groups === 'object' && raw.groups !== null ? raw.groups : {};
-  const nodes = Array.isArray(raw?.nodes)
-    ? raw.nodes.map(normalizeNode).filter(Boolean)
-    : [];
-  const links = Array.isArray(raw?.links)
-    ? raw.links.map(normalizeLink).filter(Boolean)
-    : [];
-  return { groups, nodes, links };
-}
-
-async function writeState(next) {
-  const payload = JSON.stringify(next, null, 2);
-  await fs.writeFile(DATA_FILE, `${payload}\n`);
-  state = next;
-}
-
-function enqueueMutation(mutator) {
-  let result;
-  const op = persistQueue
-    .catch((err) => {
-      console.error('Previous persistence operation failed', err);
-    })
-    .then(async () => {
-      const { next, value } = await mutator(state);
-      if (!next || typeof next !== 'object') {
-        throw new Error('Mutation must return an object with a `next` state');
-      }
-      await writeState(next);
-      result = value;
-    });
-  persistQueue = op;
-  return op.then(() => result);
-}
-
-async function loadState() {
+app.get('/map', async (req, res) => {
   try {
-    const raw = await fs.readFile(DATA_FILE, 'utf8');
-    const parsed = JSON.parse(raw);
-    state = normalizeState(parsed);
+    const map = await fetchMapData();
+    res.json(map);
   } catch (err) {
-    if (err && err.code === 'ENOENT') {
-      state = { groups: {}, nodes: [], links: [] };
-      await writeState(state);
-    } else {
-      console.error('Failed to load data file', err);
-      throw err;
-    }
+    console.error('Failed to load map', err);
+    res.status(500).json({ error: 'Failed to load map' });
   }
-}
-
-app.get('/map', (req, res) => {
-  res.json(state);
 });
 
 app.post('/nodes', async (req, res) => {
@@ -169,21 +168,14 @@ app.post('/nodes', async (req, res) => {
     node.r = r;
   }
   try {
-    await enqueueMutation((current) => {
-      if (current.nodes.some((n) => n.id === node.id)) {
-        throw new HttpError(409, 'Node exists');
-      }
-      return {
-        next: {
-          ...current,
-          nodes: [...current.nodes, node],
-        },
-      };
-    });
+    await insertNode(node);
     res.status(201).json({ ok: true });
   } catch (err) {
     if (err instanceof HttpError) {
       return res.status(err.status).json({ error: err.message });
+    }
+    if (err && err.code === 11000) {
+      return res.status(409).json({ error: 'Node exists' });
     }
     console.error('Failed to save node', err);
     res.status(500).json({ error: 'Failed to save node' });
@@ -205,21 +197,14 @@ app.post('/links', async (req, res) => {
     return res.status(400).json({ error: 'id, source, target required' });
   }
   try {
-    await enqueueMutation((current) => {
-      if (current.links.some((l) => l.id === link.id)) {
-        throw new HttpError(409, 'Link exists');
-      }
-      return {
-        next: {
-          ...current,
-          links: [...current.links, link],
-        },
-      };
-    });
+    await insertLink(link);
     res.status(201).json({ ok: true });
   } catch (err) {
     if (err instanceof HttpError) {
       return res.status(err.status).json({ error: err.message });
+    }
+    if (err && err.code === 11000) {
+      return res.status(409).json({ error: 'Link exists' });
     }
     console.error('Failed to save link', err);
     res.status(500).json({ error: 'Failed to save link' });
@@ -229,20 +214,7 @@ app.post('/links', async (req, res) => {
 app.patch('/nodes/:id', async (req, res) => {
   const description = typeof req.body?.description === 'string' ? req.body.description : '';
   try {
-    await enqueueMutation((current) => {
-      const idx = current.nodes.findIndex((n) => n.id === req.params.id);
-      if (idx === -1) {
-        throw new HttpError(404, 'Node not found');
-      }
-      const nodes = current.nodes.slice();
-      nodes[idx] = { ...nodes[idx], description };
-      return {
-        next: {
-          ...current,
-          nodes,
-        },
-      };
-    });
+    await updateNodeDescription(req.params.id, description);
     res.json({ ok: true });
   } catch (err) {
     if (err instanceof HttpError) {
@@ -254,7 +226,7 @@ app.patch('/nodes/:id', async (req, res) => {
 });
 
 async function start() {
-  await loadState();
+  await getCollections();
   const port = process.env.PORT || 3000;
   app.listen(port, () => console.log(`API running on port ${port}`));
 }
