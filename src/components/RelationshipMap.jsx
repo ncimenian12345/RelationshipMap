@@ -40,7 +40,10 @@ const resolveAvatar = (node) => {
 // When no env var is provided we default to the local API during dev builds so
 // `npm run dev` Just Works. In production we fall back to relative URLs so a
 // colocated backend (same origin) continues to work without configuration.
-const rawApiBase = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:3000" : "")).trim();
+const rawApiBase = (
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.DEV ? "http://localhost:3000" : "https://relationship-map.vercel.app")
+).trim();
 const API_URL = rawApiBase.replace(/\/$/, "");
 const apiUrl = (path) => `${API_URL}${path}`;
 const API_HEADERS = {
