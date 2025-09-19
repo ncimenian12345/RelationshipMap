@@ -37,9 +37,12 @@ const resolveAvatar = (node) => {
 };
 
 // Base URL for API calls. Can be overridden with Vite's `VITE_API_URL` env var.
-// Falls back to relative paths when not provided so the frontend can talk to a
-// colocated backend in production environments.
-const API_URL = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+// When no env var is provided we default to the local API during dev builds so
+// `npm run dev` Just Works. In production we fall back to relative URLs so a
+// colocated backend (same origin) continues to work without configuration.
+const rawApiBase = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:3000" : "")).trim();
+const API_URL = rawApiBase.replace(/\/$/, "");
+const apiUrl = (path) => `${API_URL}${path}`;
 const API_HEADERS = {
   "Content-Type": "application/json",
   Authorization: "Bearer dev-key",
@@ -332,7 +335,7 @@ export default function RelationshipMap() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`${API_URL}/map`, { headers: API_HEADERS });
+        const res = await fetch(apiUrl("/map"), { headers: API_HEADERS });
         if (!res.ok) throw new Error('load failed');
         const json = await res.json();
         setData({
@@ -466,7 +469,7 @@ export default function RelationshipMap() {
     setData((d) => ({ ...d, nodes: [...d.nodes, node] }));
     setNewNode({ label: "", group: "team", description: "" });
     try {
-      const res = await fetch(`${API_URL}/nodes`, {
+      const res = await fetch(apiUrl("/nodes"), {
         method: "POST",
         headers: API_HEADERS,
         body: JSON.stringify(node),
@@ -490,7 +493,7 @@ export default function RelationshipMap() {
     const link = { id, source: s, target: t, type: newLink.type };
     setData((d) => ({ ...d, links: [...d.links, link] }));
     try {
-      const res = await fetch(`${API_URL}/links`, {
+      const res = await fetch(apiUrl("/links"), {
         method: "POST",
         headers: API_HEADERS,
         body: JSON.stringify(link),
@@ -511,7 +514,7 @@ export default function RelationshipMap() {
       nodes: d.nodes.map((n) => (n.id === focused ? { ...n, description: focusedNotes } : n)),
     }));
     try {
-      const res = await fetch(`${API_URL}/nodes/${focused}`, {
+      const res = await fetch(apiUrl(`/nodes/${focused}`), {
         method: "PATCH",
         headers: API_HEADERS,
         body: JSON.stringify({ description: focusedNotes }),
