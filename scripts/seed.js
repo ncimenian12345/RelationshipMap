@@ -1,6 +1,8 @@
 const { MongoClient } = require('mongodb');
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017';
+const MONGODB_URI =
+  process.env.MONGODB_URI ||
+  'mongodb+srv://Vercel-Admin-relationship-map:zgivlkrP37H67Opj@relationship-map.sxtr2sd.mongodb.net/?retryWrites=true&w=majority&appName=relationship-map';
 const MONGODB_DB = process.env.MONGODB_DB || 'relationship-map';
 
 const DEFAULT_DATA = {
