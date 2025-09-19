@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo } from "react";
+import React, { useRef, useState, useEffect, useMemo, useCallback } from "react";
 
 /**
  * Interactive Relationship Map — full UI with Avatars & Notes
@@ -334,31 +334,116 @@ export default function RelationshipMap() {
   const [focused, setFocused] = useState(null);
   const containerRef = useRef(null);
   const { transform, events, setView, limits } = usePanZoom({ initial: 1, min: 0.5, max: 2.5 });
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await fetch(apiUrl("/map"), { headers: API_HEADERS });
-        if (!res.ok) throw new Error('load failed');
-        const json = await res.json();
-        setData({
-          ...json,
-          nodes: Array.isArray(json.nodes) ? json.nodes.map(applyNodeDefaults) : [],
-        });
-        setTimeout(fitToContent, 0);
-      } catch (e) {
-        setData({
-          ...demo,
-          nodes: demo.nodes.map(applyNodeDefaults),
-        });
-        setTimeout(fitToContent, 0);
-      }
-    };
-    load();
-  }, []);
+  const persistedAvatarById = useRef(new Map());
+  const hasLoadedRemote = useRef(false);
+  const inFlightFetch = useRef(null);
+  const usedFallbackData = useRef(false);
 
   const visibleNodes = data.nodes;
   const visibleLinks = data.links;
+
+  // Fit-to-content helper shared by reset button and initial auto-fit
+  const fitToContent = useCallback(() => {
+    if (!containerRef.current || visibleNodes.length === 0) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const { scale, tx, ty } = computeFitView(visibleNodes, rect.width, rect.height, 80, limits);
+    setView({ scale, tx, ty });
+  }, [containerRef, visibleNodes, limits, setView]);
+
+  const hasAutoFitted = useRef(false);
+  useEffect(() => {
+    if (hasAutoFitted.current) return;
+    if (visibleNodes.length === 0) return;
+    hasAutoFitted.current = true;
+    const id = requestAnimationFrame(() => fitToContent());
+    return () => cancelAnimationFrame(id);
+  }, [visibleNodes, fitToContent]);
+
+  const applyIncomingData = useCallback(
+    (incoming) => {
+      const groups =
+        incoming && typeof incoming === "object" && incoming.groups && typeof incoming.groups === "object"
+          ? incoming.groups
+          : {};
+      const normalizedNodes = Array.isArray(incoming?.nodes)
+        ? incoming.nodes
+            .map((node) => {
+              const normalized = applyNodeDefaults(node);
+              const hasExplicitAvatar = typeof node?.avatar === "string" && node.avatar.trim();
+              if (hasExplicitAvatar && normalized.avatar) {
+                persistedAvatarById.current.set(normalized.id, normalized.avatar);
+              } else if (normalized.avatar) {
+                const cached = persistedAvatarById.current.get(normalized.id);
+                if (cached) {
+                  normalized.avatar = cached;
+                } else {
+                  persistedAvatarById.current.set(normalized.id, normalized.avatar);
+                }
+              }
+              return normalized;
+            })
+            .filter((node) => typeof node?.id === "string")
+        : [];
+      const normalizedLinks = Array.isArray(incoming?.links)
+        ? incoming.links.filter((link) => link && typeof link.id === "string")
+        : [];
+      setData({ groups, nodes: normalizedNodes, links: normalizedLinks });
+    },
+    [setData]
+  );
+
+  const loadMap = useCallback(
+    async ({ allowFallback = false } = {}) => {
+      if (inFlightFetch.current) {
+        return inFlightFetch.current.promise;
+      }
+      const controller = new AbortController();
+      const fetchPromise = (async () => {
+        try {
+          const res = await fetch(apiUrl("/map"), { headers: API_HEADERS, signal: controller.signal });
+          if (!res.ok) throw new Error(`load failed: ${res.status}`);
+          const json = await res.json();
+          if (usedFallbackData.current) {
+            hasAutoFitted.current = false;
+            usedFallbackData.current = false;
+          }
+          applyIncomingData(json);
+          hasLoadedRemote.current = true;
+        } catch (err) {
+          if (err?.name === "AbortError") return;
+          console.error("Failed to load map", err);
+          if (allowFallback && !hasLoadedRemote.current) {
+            usedFallbackData.current = true;
+            applyIncomingData(demo);
+          }
+        } finally {
+          if (inFlightFetch.current?.controller === controller) {
+            inFlightFetch.current = null;
+          }
+        }
+      })();
+      inFlightFetch.current = { controller, promise: fetchPromise };
+      return fetchPromise;
+    },
+    [applyIncomingData]
+  );
+
+  useEffect(() => {
+    loadMap({ allowFallback: true });
+    return () => {
+      if (inFlightFetch.current?.controller) {
+        inFlightFetch.current.controller.abort();
+      }
+    };
+  }, [loadMap]);
+
+  useEffect(() => {
+    const POLL_INTERVAL_MS = 8000;
+    const id = setInterval(() => {
+      loadMap({ allowFallback: false });
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [loadMap]);
 
   const nodesById = useMemo(() => {
     const m = new Map();
@@ -395,20 +480,6 @@ export default function RelationshipMap() {
     window.removeEventListener("mousemove", onDragMove);
     window.removeEventListener("mouseup", onDragEnd);
   };
-
-  // Fit-to-content
-  const fitToContent = () => {
-    if (!containerRef.current || visibleNodes.length === 0) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const { scale, tx, ty } = computeFitView(visibleNodes, rect.width, rect.height, 80, limits);
-    setView({ scale, tx, ty });
-  };
-
-  useEffect(() => {
-    const id = requestAnimationFrame(() => fitToContent());
-    return () => cancelAnimationFrame(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // UI helpers
   const zoomBy = (mult) => {
@@ -478,6 +549,7 @@ export default function RelationshipMap() {
         body: JSON.stringify(node),
       });
       if (!res.ok) throw new Error('req failed');
+      await loadMap({ allowFallback: false });
     } catch (err) {
       setLastError("Failed to save node.");
       setData((d) => ({ ...d, nodes: d.nodes.filter((n) => n.id !== id) }));
@@ -502,6 +574,7 @@ export default function RelationshipMap() {
         body: JSON.stringify(link),
       });
       if (!res.ok) throw new Error('req failed');
+      await loadMap({ allowFallback: false });
     } catch (err) {
       setLastError("Failed to save link.");
       setData((d) => ({ ...d, links: d.links.filter((l) => l.id !== id) }));
