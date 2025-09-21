@@ -51,10 +51,16 @@ const rawApiBase = (() => {
   if (envApiUrl) {
     return envApiUrl;
   }
-  const message =
-    "Missing VITE_API_URL environment variable. Set it to your deployed Express API origin before building.";
-  console.error(message);
-  throw new Error(message);
+  if (typeof window !== "undefined" && window.location && window.location.origin) {
+    console.warn(
+      "VITE_API_URL is not set. Falling back to the current origin for API requests. Configure VITE_API_URL for production deployments."
+    );
+    return window.location.origin;
+  }
+  console.warn(
+    "VITE_API_URL is not set and the current origin cannot be determined. API requests will use relative paths."
+  );
+  return "";
 })();
 const API_URL = rawApiBase.replace(/\/$/, "");
 const normalizeApiPath = (path = "") => {
