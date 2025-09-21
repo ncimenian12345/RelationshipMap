@@ -42,6 +42,12 @@ npm run dev
 
 5. Open your browser and navigate to `http://localhost:5173`
 
+6. (Optional) Run the connectivity diagnostic to confirm the API can talk to MongoDB:
+```bash
+npm run diagnose
+```
+This command pings the configured database, prints sample records, and performs a temporary write/delete cycle to validate CRUD access.
+
 > The front end expects API requests to be sent to the URL specified in the
 > `VITE_API_URL` environment variable. When running locally the default is
 > `http://localhost:3000`, but you can override this by exporting
@@ -49,6 +55,13 @@ npm run dev
 > `VITE_API_URL` to be set to the deployed Express API origin (e.g.
 > `https://relationship-map-api.vercel.app`) before running `npm run build` or
 > deploying.
+
+### Environment variables
+
+- `API_KEY`: Shared secret required by the Express API. Defaults to `dev-key` during development.
+- `MONGODB_URI` / `MONGODB_DB`: Connection string and database name used by the API and helper scripts.
+- `VITE_API_URL`: Base URL of the deployed Express API consumed by the React front end.
+- `VITE_API_KEY`: API key sent by the front end. Defaults to `dev-key` when developing locally; set it in production to mirror `API_KEY`.
 
 ## Usage
 
