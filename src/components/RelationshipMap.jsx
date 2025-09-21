@@ -363,6 +363,7 @@ const Edge = ({ a, b, type = "solid", highlight = false }) => {
 export default function RelationshipMap() {
   const [data, setData] = useState({ groups: {}, nodes: [], links: [] });
   const [focused, setFocused] = useState(null);
+  const [lastError, setLastError] = useState("");
   const containerRef = useRef(null);
   const { transform, events, setView, limits } = usePanZoom({ initial: 1, min: 0.5, max: 2.5 });
   const persistedAvatarById = useRef(new Map());
@@ -542,7 +543,6 @@ export default function RelationshipMap() {
   // Add Node / Link state & helpers
   const [newNode, setNewNode] = useState({ label: "", group: "team", description: "" });
   const [newLink, setNewLink] = useState({ source: "", target: "", type: "solid" });
-  const [lastError, setLastError] = useState("");
   const [focusedNotes, setFocusedNotes] = useState("");
 
   const slug = (s) => (s || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
