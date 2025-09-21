@@ -5,7 +5,8 @@
     "preview": "vite preview",
     "test": "echo \"No tests yet\" && exit 0",
     "server": "node server.js",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "diagnose": "node scripts/diagnose.js"
   },
   "devDependencies": {
     "tailwindcss": "^3.4.0",

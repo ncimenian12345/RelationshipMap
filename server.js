@@ -1,14 +1,9 @@
 const express = require('express');
-const { MongoClient } = require('mongodb');
+const { runWithRetry, pingDatabase } = require('./lib/mongo');
 
 const app = express();
 
 const API_KEY = process.env.API_KEY || 'dev-key';
-const MONGODB_URI =
-  process.env.MONGODB_URI ||
-  'mongodb+srv://Vercel-Admin-relationship-map:zgivlkrP37H67Opj@relationship-map.sxtr2sd.mongodb.net/?retryWrites=true&w=majority&appName=relationship-map';
-const MONGODB_DB = process.env.MONGODB_DB || 'relationship-map';
-
 app.use(express.json());
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -36,29 +31,6 @@ class HttpError extends Error {
   }
 }
 
-const client = new MongoClient(MONGODB_URI);
-let collectionsPromise;
-
-function getCollections() {
-  if (!collectionsPromise) {
-    collectionsPromise = client
-      .connect()
-      .then(() => {
-        const db = client.db(MONGODB_DB);
-        return {
-          groups: db.collection('groups'),
-          nodes: db.collection('nodes'),
-          links: db.collection('links'),
-        };
-      })
-      .catch((err) => {
-        collectionsPromise = null;
-        throw err;
-      });
-  }
-  return collectionsPromise;
-}
-
 const documentToNode = (doc) => {
   if (!doc) return null;
   const { _id, ...rest } = doc;
@@ -72,60 +44,64 @@ const documentToLink = (doc) => {
 };
 
 async function fetchMapData() {
-  const { groups, nodes, links } = await getCollections();
-  const [groupDocs, nodeDocs, linkDocs] = await Promise.all([
-    groups.find({}).toArray(),
-    nodes.find({}).toArray(),
-    links.find({}).toArray(),
-  ]);
+  return runWithRetry(async ({ groups, nodes, links }) => {
+    const [groupDocs, nodeDocs, linkDocs] = await Promise.all([
+      groups.find({}).toArray(),
+      nodes.find({}).toArray(),
+      links.find({}).toArray(),
+    ]);
 
-  const groupsMap = {};
-  for (const doc of groupDocs) {
-    if (!doc || typeof doc._id !== 'string') continue;
-    const { _id, ...rest } = doc;
-    groupsMap[_id] = rest;
-  }
+    const groupsMap = {};
+    for (const doc of groupDocs) {
+      if (!doc || typeof doc._id !== 'string') continue;
+      const { _id, ...rest } = doc;
+      groupsMap[_id] = rest;
+    }
 
-  return {
-    groups: groupsMap,
-    nodes: nodeDocs.map(documentToNode).filter(Boolean),
-    links: linkDocs.map(documentToLink).filter(Boolean),
-  };
+    return {
+      groups: groupsMap,
+      nodes: nodeDocs.map(documentToNode).filter(Boolean),
+      links: linkDocs.map(documentToLink).filter(Boolean),
+    };
+  });
 }
 
 async function insertNode(node) {
-  const { nodes } = await getCollections();
-  await nodes.insertOne({
-    _id: node.id,
-    label: node.label,
-    group: node.group,
-    x: node.x,
-    y: node.y,
-    description: node.description,
-    ...(typeof node.avatar === 'string' && node.avatar ? { avatar: node.avatar } : {}),
-    ...(Number.isFinite(node.r) ? { r: node.r } : {}),
+  await runWithRetry(async ({ nodes }) => {
+    await nodes.insertOne({
+      _id: node.id,
+      label: node.label,
+      group: node.group,
+      x: node.x,
+      y: node.y,
+      description: node.description,
+      ...(typeof node.avatar === 'string' && node.avatar ? { avatar: node.avatar } : {}),
+      ...(Number.isFinite(node.r) ? { r: node.r } : {}),
+    });
   });
 }
 
 async function insertLink(link) {
-  const { links } = await getCollections();
-  await links.insertOne({
-    _id: link.id,
-    source: link.source,
-    target: link.target,
-    type: link.type,
+  await runWithRetry(async ({ links }) => {
+    await links.insertOne({
+      _id: link.id,
+      source: link.source,
+      target: link.target,
+      type: link.type,
+    });
   });
 }
 
 async function updateNodeDescription(id, description) {
-  const { nodes } = await getCollections();
-  const result = await nodes.updateOne(
-    { _id: id },
-    { $set: { description } }
-  );
-  if (result.matchedCount === 0) {
-    throw new HttpError(404, 'Node not found');
-  }
+  return runWithRetry(async ({ nodes }) => {
+    const result = await nodes.updateOne(
+      { _id: id },
+      { $set: { description } }
+    );
+    if (result.matchedCount === 0) {
+      throw new HttpError(404, 'Node not found');
+    }
+  });
 }
 
 app.get('/map', async (req, res) => {
@@ -227,8 +203,26 @@ app.patch('/nodes/:id', async (req, res) => {
   }
 });
 
+app.get('/healthz', async (req, res) => {
+  try {
+    const status = await pingDatabase();
+    res.json(status);
+  } catch (err) {
+    console.error('MongoDB health check failed', err);
+    res.status(500).json({ ok: false, error: 'MongoDB health check failed' });
+  }
+});
+
 async function start() {
-  await getCollections();
+  try {
+    const { database, nodesCount, linksCount } = await pingDatabase();
+    console.log(
+      `Connected to MongoDB database "${database}" (nodes: ${nodesCount}, links: ${linksCount}).`
+    );
+  } catch (err) {
+    console.error('Failed to establish initial MongoDB connection', err);
+    throw err;
+  }
   const port = process.env.PORT || 3000;
   app.listen(port, () => console.log(`API running on port ${port}`));
 }

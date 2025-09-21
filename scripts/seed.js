@@ -1,9 +1,6 @@
-const { MongoClient } = require('mongodb');
+const { runWithRetry, resetClient, constants } = require('../lib/mongo');
 
-const MONGODB_URI =
-  process.env.MONGODB_URI ||
-  'mongodb+srv://Vercel-Admin-relationship-map:zgivlkrP37H67Opj@relationship-map.sxtr2sd.mongodb.net/?retryWrites=true&w=majority&appName=relationship-map';
-const MONGODB_DB = process.env.MONGODB_DB || 'relationship-map';
+const { MONGODB_DB } = constants;
 
 const DEFAULT_DATA = {
   groups: {
@@ -117,15 +114,7 @@ const DEFAULT_DATA = {
 };
 
 async function main() {
-  const client = new MongoClient(MONGODB_URI);
-  await client.connect();
-
-  try {
-    const db = client.db(MONGODB_DB);
-    const groups = db.collection('groups');
-    const nodes = db.collection('nodes');
-    const links = db.collection('links');
-
+  await runWithRetry(async ({ db, groups, nodes, links }) => {
     await Promise.all([
       groups.deleteMany({}),
       nodes.deleteMany({}),
@@ -157,12 +146,12 @@ async function main() {
     }
 
     console.log(`Seeded MongoDB database "${MONGODB_DB}" with demo relationship data.`);
-  } finally {
-    await client.close();
-  }
+  });
 }
 
 main().catch((err) => {
   console.error(err);
   process.exit(1);
+}).finally(() => {
+  resetClient().catch(() => {});
 });

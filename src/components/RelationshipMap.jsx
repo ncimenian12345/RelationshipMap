@@ -41,6 +41,8 @@ const resolveAvatar = (node) => {
 // continue to default to the local server for convenience.
 const envApiUrl =
   typeof import.meta.env?.VITE_API_URL === "string" ? import.meta.env.VITE_API_URL.trim() : "";
+const envApiKey =
+  typeof import.meta.env?.VITE_API_KEY === "string" ? import.meta.env.VITE_API_KEY.trim() : "";
 
 const rawApiBase = (() => {
   if (import.meta.env.DEV) {
@@ -63,9 +65,15 @@ const normalizeApiPath = (path = "") => {
   return sanitized ? `/${sanitized}` : "/";
 };
 const apiUrl = (path) => `${API_URL}${normalizeApiPath(path)}`;
+const resolvedApiKey = envApiKey || (import.meta.env.DEV ? "dev-key" : "");
+if (!envApiKey && !import.meta.env.DEV) {
+  console.warn(
+    'Using fallback API key "dev-key". Provide VITE_API_KEY in production to match your server configuration.'
+  );
+}
 const API_HEADERS = {
   "Content-Type": "application/json",
-  Authorization: "Bearer dev-key",
+  ...(resolvedApiKey ? { Authorization: `Bearer ${resolvedApiKey}` } : {}),
 };
 
 // ---------------- Demo Data (✅ now defined in-file) ----------------
@@ -426,12 +434,16 @@ export default function RelationshipMap() {
           }
           applyIncomingData(json);
           hasLoadedRemote.current = true;
+          setLastError("");
         } catch (err) {
           if (err?.name === "AbortError") return;
           console.error("Failed to load map", err);
           if (allowFallback && !hasLoadedRemote.current) {
             usedFallbackData.current = true;
             applyIncomingData(demo);
+            setLastError(
+              'Unable to reach the live API. Showing demo data only; changes will not be saved until the connection is restored.'
+            );
           }
         } finally {
           if (inFlightFetch.current?.controller === controller) {
@@ -442,7 +454,7 @@ export default function RelationshipMap() {
       inFlightFetch.current = { controller, promise: fetchPromise };
       return fetchPromise;
     },
-    [applyIncomingData]
+    [applyIncomingData, setLastError]
   );
 
   useEffect(() => {
