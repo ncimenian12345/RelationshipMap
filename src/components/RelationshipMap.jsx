@@ -233,8 +233,8 @@ const demo = {
       id: "t1",
       label: "Ari",
       group: "team",
-      x: 320,
-      y: 175,
+      x: 293,
+      y: 109,
       description:
         "Ari - Ari runs a rival ice operation and loves to brag about outselling Noah, which drives Noah crazy; their rivalry fuels most of Noah's motivation to outdo everyone else.",
       avatar: defaultAvatarById.t1,
@@ -243,8 +243,8 @@ const demo = {
       id: "t2",
       label: "Moe",
       group: "team",
-      x: 430,
-      y: 120,
+      x: 412,
+      y: 143,
       description:
         "Mo - Noah and Moe are best friends, but their friendship is complicated by business — Moe is technically Noah's competitor, running his own ice business on the other side of town. They respect each other's hustle but quietly keep an eye on each other's moves.",
       avatar: defaultAvatarById.t2,
@@ -253,8 +253,8 @@ const demo = {
       id: "t3",
       label: "Ned",
       group: "team",
-      x: 580,
-      y: 140,
+      x: 505,
+      y: 137,
       description:
         "Ned- Ned is another competitor who once tried to poach Noah's best supplier, leaving Noah furious and determined never to trust him again.",
       avatar: defaultAvatarById.t3,
