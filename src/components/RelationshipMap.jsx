@@ -263,7 +263,7 @@ const demo = {
       id: "t4",
       label: "Lee",
       group: "team",
-      x: 392,
+      x: 292,
       y: 663,
       description:
         "Lee - Bo and Lee are inseparable co-workers who grew up learning the trade together, and they have a reputation for getting shipments out faster than anyone else.",
