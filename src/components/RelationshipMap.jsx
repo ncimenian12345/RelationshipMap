@@ -341,7 +341,7 @@ const EDGE_TYPE_STYLES = {
   },
   mixed: {
     label: "Mixed feelings",
-    color: "#7C3AED",
+    color: "#FACC15",
     curve: true,
     bend: 0.28,
     width: 2,
