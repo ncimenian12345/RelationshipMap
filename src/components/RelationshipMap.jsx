@@ -82,7 +82,26 @@ const BASE_API_HEADERS = {
 
 const sanitizeBase = (value) => {
   if (typeof value !== "string") return "";
-  return value.trim().replace(/\/+$/, "");
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) || trimmed.startsWith("//")) {
+    return trimmed.replace(/\/+$/, "");
+  }
+  if (trimmed.startsWith("/")) {
+    const normalized = `/${trimmed.replace(/^\/+/, "")}`;
+    return normalized.replace(/\/+$/, "");
+  }
+  const lower = trimmed.toLowerCase();
+  const isLocalHost = /^localhost(?::|\/|\?|#|$)/.test(lower);
+  const isIpAddress = /^\d+\.\d+\.\d+\.\d+(?::\d+)?(?:\/|$)/.test(trimmed);
+  const looksLikeHost = trimmed.includes(".") || trimmed.includes(":") || isLocalHost || isIpAddress;
+  if (!looksLikeHost) {
+    const normalized = `/${trimmed.replace(/^\/+/, "")}`;
+    return normalized.replace(/\/+$/, "");
+  }
+  const hasExplicitPort = /:\d+/.test(trimmed);
+  const scheme = isLocalHost || isIpAddress || hasExplicitPort ? "http" : "https";
+  return `${scheme}://${trimmed}`.replace(/\/+$/, "");
 };
 
 const API_BASE_CANDIDATES = (() => {
