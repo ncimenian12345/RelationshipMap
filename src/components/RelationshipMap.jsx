@@ -222,8 +222,8 @@ const demo = {
       id: "main",
       label: "Noah",
       group: "main",
-      x: 520,
-      y: 280,
+      x: 615,
+      y: 304,
       r: 56,
       description:
         "Noah-The ice seller who keeps the whole network running. Without him, Bud and Ivy wouldn't have a reason to supply ice, and ADA, Cy, Bo, and Lee wouldn't be moving as much product from the manufacturing side. He's at the center of the supply chain, managing deals, negotiating with suppliers, and figuring out how to stay ahead of competitors like Moe, Ari, and Ned.",
@@ -234,7 +234,7 @@ const demo = {
       label: "Ari",
       group: "team",
       x: 320,
-      y: 120,
+      y: 175,
       description:
         "Ari - Ari runs a rival ice operation and loves to brag about outselling Noah, which drives Noah crazy; their rivalry fuels most of Noah's motivation to outdo everyone else.",
       avatar: defaultAvatarById.t1,
@@ -273,8 +273,8 @@ const demo = {
       id: "p1",
       label: "Ivy",
       group: "planters",
-      x: 700,
-      y: 220,
+      x: 790,
+      y: 203,
       description:
         "Ivy - Ivy is another supplier for Noah, and while their working relationship is polite, Noah wishes Ivy were more open and collaborative about new ideas.",
       avatar: defaultAvatarById.p1,
@@ -283,8 +283,8 @@ const demo = {
       id: "p2",
       label: "Bud",
       group: "planters",
-      x: 720,
-      y: 320,
+      x: 875,
+      y: 298,
       description:
         "Bud - Noah relies on Bud as one of his main suppliers, and though they're only casually friendly, Noah appreciates that Bud always delivers on time and keeps things professional.",
       avatar: defaultAvatarById.p2,
