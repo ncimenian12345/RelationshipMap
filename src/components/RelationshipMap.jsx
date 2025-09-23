@@ -215,7 +215,7 @@ const demo = {
     team: { label: "Competitors", color: "#5B8DEF" },
     planters: { label: "Suppliers", color: "#44C4A1" },
     scientists: { label: "Manufacturers", color: "#FF9171" },
-    main: { label: "Noah", color: "#9B7DFF" },
+    main: { label: "The Main Guy", color: "#9B7DFF" },
   },
   nodes: [
     {
