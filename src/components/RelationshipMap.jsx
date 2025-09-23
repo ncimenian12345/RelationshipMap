@@ -70,16 +70,124 @@ const normalizeApiPath = (path = "") => {
   const sanitized = trimmed.replace(/^\/+/g, "");
   return sanitized ? `/${sanitized}` : "/";
 };
-const apiUrl = (path) => `${API_URL}${normalizeApiPath(path)}`;
 const resolvedApiKey = envApiKey || (import.meta.env.DEV ? "dev-key" : "");
 if (!envApiKey && !import.meta.env.DEV) {
   console.warn(
     'Using fallback API key "dev-key". Provide VITE_API_KEY in production to match your server configuration.'
   );
 }
-const API_HEADERS = {
-  "Content-Type": "application/json",
+const BASE_API_HEADERS = {
   ...(resolvedApiKey ? { Authorization: `Bearer ${resolvedApiKey}` } : {}),
+};
+
+const sanitizeBase = (value) => {
+  if (typeof value !== "string") return "";
+  return value.trim().replace(/\/+$/, "");
+};
+
+const API_BASE_CANDIDATES = (() => {
+  const bases = new Set();
+  const primary = sanitizeBase(API_URL);
+  if (primary) {
+    bases.add(primary);
+    if (!/\/api$/i.test(primary)) {
+      bases.add(sanitizeBase(`${primary}/api`));
+    }
+  }
+  if (typeof window !== "undefined" && window.location?.origin) {
+    const origin = sanitizeBase(window.location.origin);
+    if (origin) {
+      bases.add(origin);
+    }
+  }
+  bases.add("");
+  return Array.from(bases);
+})();
+
+let preferredApiBase = API_BASE_CANDIDATES[0] ?? "";
+
+const getApiBaseAttemptOrder = () => {
+  const seen = new Set();
+  const order = [];
+  const normalizedPreferred = sanitizeBase(preferredApiBase);
+  if (!seen.has(normalizedPreferred)) {
+    order.push(normalizedPreferred);
+    seen.add(normalizedPreferred);
+  }
+  for (const base of API_BASE_CANDIDATES) {
+    const sanitized = sanitizeBase(base);
+    if (!seen.has(sanitized)) {
+      order.push(sanitized);
+      seen.add(sanitized);
+    }
+  }
+  return order;
+};
+
+const buildUrlForBase = (base, path) => {
+  const normalizedPath = normalizeApiPath(path);
+  if (!base) {
+    return normalizedPath || "/";
+  }
+  if (!normalizedPath || normalizedPath === "/") {
+    return `${base}/`;
+  }
+  return `${base}${normalizedPath}`;
+};
+
+const fetchFromApi = async (path, options = {}) => {
+  const { headers: overrideHeaders = {}, method, body, ...otherOptions } = options;
+  const normalizedMethod = typeof method === "string" ? method.toUpperCase() : undefined;
+  const headers = { ...BASE_API_HEADERS, ...overrideHeaders };
+  const shouldAttachJsonHeader =
+    body !== undefined &&
+    body !== null &&
+    body !== "" &&
+    !headers["Content-Type"] &&
+    normalizedMethod !== "GET" &&
+    normalizedMethod !== "HEAD";
+  if (shouldAttachJsonHeader) {
+    headers["Content-Type"] = "application/json";
+  }
+  const requestInit = {
+    ...otherOptions,
+    ...(normalizedMethod ? { method: normalizedMethod } : {}),
+    ...(body !== undefined ? { body } : {}),
+    headers,
+  };
+
+  const attemptOrder = getApiBaseAttemptOrder();
+  let lastError = null;
+  for (const base of attemptOrder) {
+    const url = buildUrlForBase(base, path);
+    try {
+      const res = await fetch(url, { ...requestInit });
+      if (!res.ok) {
+        const error = new Error(`Request failed with status ${res.status}`);
+        error.response = res;
+        error.status = res.status;
+        error.url = url;
+        lastError = error;
+        continue;
+      }
+      if (preferredApiBase !== base) {
+        preferredApiBase = base;
+        if (typeof console !== "undefined") {
+          console.info(
+            `[relationship-map] Using API base "${base || "<relative origin>"}"`
+          );
+        }
+      }
+      return res;
+    } catch (err) {
+      if (err?.name === "AbortError") {
+        throw err;
+      }
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error(`All API attempts failed for ${path}`);
 };
 
 // ---------------- Demo Data (✅ now defined in-file) ----------------
@@ -432,8 +540,7 @@ export default function RelationshipMap() {
       const controller = new AbortController();
       const fetchPromise = (async () => {
         try {
-          const res = await fetch(apiUrl("/map"), { headers: API_HEADERS, signal: controller.signal });
-          if (!res.ok) throw new Error(`load failed: ${res.status}`);
+          const res = await fetchFromApi("/map", { signal: controller.signal });
           const json = await res.json();
           if (usedFallbackData.current) {
             hasAutoFitted.current = false;
@@ -578,12 +685,10 @@ export default function RelationshipMap() {
     setData((d) => ({ ...d, nodes: [...d.nodes, node] }));
     setNewNode({ label: "", group: "team", description: "" });
     try {
-      const res = await fetch(apiUrl("/nodes"), {
+      await fetchFromApi("/nodes", {
         method: "POST",
-        headers: API_HEADERS,
         body: JSON.stringify(node),
       });
-      if (!res.ok) throw new Error('req failed');
       await loadMap({ allowFallback: false });
     } catch (err) {
       setLastError("Failed to save node.");
@@ -603,12 +708,10 @@ export default function RelationshipMap() {
     const link = { id, source: s, target: t, type: newLink.type };
     setData((d) => ({ ...d, links: [...d.links, link] }));
     try {
-      const res = await fetch(apiUrl("/links"), {
+      await fetchFromApi("/links", {
         method: "POST",
-        headers: API_HEADERS,
         body: JSON.stringify(link),
       });
-      if (!res.ok) throw new Error('req failed');
       await loadMap({ allowFallback: false });
     } catch (err) {
       setLastError("Failed to save link.");
@@ -625,12 +728,10 @@ export default function RelationshipMap() {
       nodes: d.nodes.map((n) => (n.id === focused ? { ...n, description: focusedNotes } : n)),
     }));
     try {
-      const res = await fetch(apiUrl(`/nodes/${focused}`), {
+      await fetchFromApi(`/nodes/${focused}`, {
         method: "PATCH",
-        headers: API_HEADERS,
         body: JSON.stringify({ description: focusedNotes }),
       });
-      if (!res.ok) throw new Error('req failed');
     } catch (err) {
       setLastError("Failed to save notes.");
       setData((d) => ({
