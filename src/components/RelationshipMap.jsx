@@ -263,8 +263,8 @@ const demo = {
       id: "t4",
       label: "Lee",
       group: "team",
-      x: 300,
-      y: 260,
+      x: 392,
+      y: 563,
       description:
         "Lee - Bo and Lee are inseparable co-workers who grew up learning the trade together, and they have a reputation for getting shipments out faster than anyone else.",
       avatar: defaultAvatarById.t4,
@@ -293,8 +293,8 @@ const demo = {
       id: "s1",
       label: "Ada",
       group: "scientists",
-      x: 440,
-      y: 440,
+      x: 457,
+      y: 521,
       description:
         "Ada - Noah has bad blood with ADA, one of the manufacturers — she once shorted him on a shipment and publicly called him out over it, so he refuses to work with her unless absolutely necessary.",
       avatar: defaultAvatarById.s1,
@@ -303,8 +303,8 @@ const demo = {
       id: "s2",
       label: "Bo",
       group: "scientists",
-      x: 320,
-      y: 520,
+      x: 351,
+      y: 663,
       description:
         "Bo - Ada and Bo are best friends on the manufacturing floor, often teaming up to solve problems and gossip about the sellers' drama.",
       avatar: defaultAvatarById.s2,
