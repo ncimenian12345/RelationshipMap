@@ -311,14 +311,63 @@ const demo = {
     },
   ],
   links: [
-    { id: "l1", source: "t1", target: "main", type: "dashed" },
-    { id: "l2", source: "t3", target: "main", type: "dashed" },
+    { id: "l1", source: "t1", target: "main", type: "trust" },
+    { id: "l2", source: "t3", target: "main", type: "trust" },
     { id: "l3", source: "t4", target: "s2", type: "solid" },
-    { id: "l4", source: "p1", target: "main", type: "curved" },
-    { id: "l5", source: "p2", target: "main", type: "curved" },
+    { id: "l4", source: "p1", target: "main", type: "mixed" },
+    { id: "l5", source: "p2", target: "main", type: "mixed" },
     { id: "l6", source: "s1", target: "s2", type: "solid" },
-    { id: "l7", source: "s1", target: "main", type: "dashed" },
+    { id: "l7", source: "s1", target: "main", type: "trust" },
+    { id: "l8", source: "t2", target: "main", type: "solid" },
+    { id: "l9", source: "s3", target: "s1", type: "mixed" },
   ],
+};
+
+const EDGE_TYPE_ORDER = ["trust", "mixed", "solid"];
+
+const EDGE_STYLE_ALIASES = {
+  dashed: "trust",
+  curved: "mixed",
+};
+
+const EDGE_TYPE_STYLES = {
+  trust: {
+    label: "Trust issues",
+    color: "#DC2626",
+    dash: "6 6",
+    curve: false,
+    width: 2,
+    opacity: 0.85,
+  },
+  mixed: {
+    label: "Mixed feelings",
+    color: "#7C3AED",
+    curve: true,
+    bend: 0.28,
+    width: 2,
+    opacity: 0.85,
+  },
+  solid: {
+    label: "Solid Terms",
+    color: "#16A34A",
+    curve: false,
+    width: 2,
+    opacity: 0.85,
+  },
+};
+
+const EDGE_HIGHLIGHT_STYLE = {
+  label: "Highlighted (for focus)",
+  color: "#111827",
+  width: 3,
+  opacity: 0.95,
+};
+
+const normalizeLinkType = (value) => {
+  if (typeof value !== "string") return "solid";
+  const normalized = value.trim().toLowerCase();
+  const alias = EDGE_STYLE_ALIASES[normalized] || normalized;
+  return EDGE_TYPE_STYLES[alias] ? alias : "solid";
 };
 
 const applyNodeDefaults = (node = {}) => ({
@@ -465,23 +514,34 @@ const Node = ({ n, isFocused = false, onPointerDown = () => {}, onClick = () => 
 const Edge = ({ a, b, type = "solid", highlight = false }) => {
   if (!a || !b) return null;
   const ax = a.x, ay = a.y, bx = b.x, by = b.y;
-  const dashed = type === "dashed";
-  const curved = type === "curved";
+  const normalizedType = normalizeLinkType(type);
+  const style = EDGE_TYPE_STYLES[normalizedType] || EDGE_TYPE_STYLES.solid;
+  const shouldCurve = !!style.curve;
+  const bend = Number.isFinite(style.bend) ? style.bend : 0.2;
   let d;
-  if (curved) {
-    const [cx, cy] = curveCtrl(ax, ay, bx, by);
+  if (shouldCurve) {
+    const [cx, cy] = curveCtrl(ax, ay, bx, by, bend);
     d = `M ${ax} ${ay} Q ${cx} ${cy} ${bx} ${by}`;
   } else {
     d = `M ${ax} ${ay} L ${bx} ${by}`;
   }
+  const strokeColor = highlight ? EDGE_HIGHLIGHT_STYLE.color : style.color;
+  const strokeWidth = highlight
+    ? EDGE_HIGHLIGHT_STYLE.width ?? style.width ?? 2
+    : style.width ?? 2;
+  const strokeOpacity = highlight
+    ? EDGE_HIGHLIGHT_STYLE.opacity ?? style.opacity ?? 0.85
+    : style.opacity ?? 0.85;
+
   return (
     <path
       d={d}
-      stroke={highlight ? "#111827" : "#C2410C"}
-      strokeWidth={highlight ? 3 : 2}
+      stroke={strokeColor}
+      strokeWidth={strokeWidth}
       fill="none"
-      strokeDasharray={dashed ? "6 6" : undefined}
-      opacity={highlight ? 0.9 : 0.8}
+      strokeDasharray={style.dash}
+      opacity={strokeOpacity}
+      strokeLinecap="round"
     />
   );
 };
@@ -544,7 +604,13 @@ export default function RelationshipMap() {
             .filter((node) => typeof node?.id === "string")
         : [];
       const normalizedLinks = Array.isArray(incoming?.links)
-        ? incoming.links.filter((link) => link && typeof link.id === "string")
+        ? incoming.links
+            .map((link) => {
+              if (!link || typeof link.id !== "string") return null;
+              const type = normalizeLinkType(link.type);
+              return { ...link, type };
+            })
+            .filter(Boolean)
         : [];
       setData({ groups, nodes: normalizedNodes, links: normalizedLinks });
     },
@@ -724,7 +790,8 @@ export default function RelationshipMap() {
       return;
     }
     const id = `e_${Date.now().toString(36)}`;
-    const link = { id, source: s, target: t, type: newLink.type };
+    const type = normalizeLinkType(newLink.type);
+    const link = { id, source: s, target: t, type };
     setData((d) => ({ ...d, links: [...d.links, link] }));
     try {
       await fetchFromApi("/links", {
@@ -793,9 +860,43 @@ export default function RelationshipMap() {
       <div className="absolute top-6 right-44 bg-white/80 backdrop-blur rounded-xl shadow p-3" onClick={(e) => e.stopPropagation()}>
         <div className="font-semibold mb-2">Map Key</div>
         <div className="flex flex-col gap-1 text-sm">
-          <div className="flex items-center gap-2"><span className="w-6 h-0.5 bg-stone-800 inline-block"/>Focus</div>
-          <div className="flex items-center gap-2"><span className="w-6 h-0.5 bg-orange-600 inline-block"/>Link</div>
-          <div className="flex items-center gap-2"><span className="w-6 h-0.5 border-t-2 border-dashed border-orange-600"/>Dashed</div>
+          {EDGE_TYPE_ORDER.map((type) => {
+            const style = EDGE_TYPE_STYLES[type];
+            if (!style) return null;
+            const pathD = style.curve ? "M 2 10 Q 16 0 30 10" : "M 2 6 L 30 6";
+            const strokeWidth = style.width ?? 2;
+            const strokeOpacity = style.opacity ?? 0.85;
+            return (
+              <div key={type} className="flex items-center gap-2">
+                <svg className="w-8 h-4" viewBox="0 0 32 12" aria-hidden="true">
+                  <path
+                    d={pathD}
+                    stroke={style.color}
+                    strokeWidth={strokeWidth}
+                    strokeDasharray={style.dash}
+                    strokeOpacity={strokeOpacity}
+                    fill="none"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                {style.label}
+              </div>
+            );
+          })}
+          <div className="flex items-center gap-2">
+            <svg className="w-8 h-4" viewBox="0 0 32 12" aria-hidden="true">
+              <path
+                d="M 2 6 L 30 6"
+                stroke={EDGE_HIGHLIGHT_STYLE.color}
+                strokeWidth={EDGE_HIGHLIGHT_STYLE.width ?? 3}
+                strokeOpacity={EDGE_HIGHLIGHT_STYLE.opacity ?? 0.95}
+                strokeDasharray={EDGE_HIGHLIGHT_STYLE.dash}
+                fill="none"
+                strokeLinecap="round"
+              />
+            </svg>
+            {EDGE_HIGHLIGHT_STYLE.label}
+          </div>
         </div>
       </div>
 
@@ -892,9 +993,11 @@ export default function RelationshipMap() {
             <input className="px-2 py-1 rounded-lg border w-full" placeholder="source id (e.g., t1)" value={newLink.source} onChange={(e) => setNewLink((l) => ({ ...l, source: e.target.value }))} />
             <input className="px-2 py-1 rounded-lg border w-full" placeholder="target id (e.g., main)" value={newLink.target} onChange={(e) => setNewLink((l) => ({ ...l, target: e.target.value }))} />
             <select className="px-2 py-1 rounded-lg border" value={newLink.type} onChange={(e) => setNewLink((l) => ({ ...l, type: e.target.value }))}>
-              <option value="solid">solid</option>
-              <option value="dashed">dashed</option>
-              <option value="curved">curved</option>
+              {EDGE_TYPE_ORDER.map((type) => (
+                <option key={type} value={type}>
+                  {EDGE_TYPE_STYLES[type]?.label || type}
+                </option>
+              ))}
             </select>
             <button className="px-3 py-1 rounded-xl shadow" onClick={handleAddLink}>Link</button>
           </div>
