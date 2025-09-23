@@ -222,8 +222,8 @@ const demo = {
       id: "main",
       label: "Noah",
       group: "main",
-      x: 400,
-      y: 340,
+      x: 520,
+      y: 280,
       r: 56,
       description:
         "Noah-The ice seller who keeps the whole network running. Without him, Bud and Ivy wouldn't have a reason to supply ice, and ADA, Cy, Bo, and Lee wouldn't be moving as much product from the manufacturing side. He's at the center of the supply chain, managing deals, negotiating with suppliers, and figuring out how to stay ahead of competitors like Moe, Ari, and Ned.",
@@ -233,8 +233,8 @@ const demo = {
       id: "t1",
       label: "Ari",
       group: "team",
-      x: 160,
-      y: 145,
+      x: 320,
+      y: 120,
       description:
         "Ari - Ari runs a rival ice operation and loves to brag about outselling Noah, which drives Noah crazy; their rivalry fuels most of Noah's motivation to outdo everyone else.",
       avatar: defaultAvatarById.t1,
@@ -243,8 +243,8 @@ const demo = {
       id: "t2",
       label: "Moe",
       group: "team",
-      x: 230,
-      y: 170,
+      x: 430,
+      y: 120,
       description:
         "Mo - Noah and Moe are best friends, but their friendship is complicated by business — Moe is technically Noah's competitor, running his own ice business on the other side of town. They respect each other's hustle but quietly keep an eye on each other's moves.",
       avatar: defaultAvatarById.t2,
@@ -253,8 +253,8 @@ const demo = {
       id: "t3",
       label: "Ned",
       group: "team",
-      x: 300,
-      y: 160,
+      x: 580,
+      y: 140,
       description:
         "Ned- Ned is another competitor who once tried to poach Noah's best supplier, leaving Noah furious and determined never to trust him again.",
       avatar: defaultAvatarById.t3,
@@ -263,8 +263,8 @@ const demo = {
       id: "t4",
       label: "Lee",
       group: "team",
-      x: 90,
-      y: 240,
+      x: 300,
+      y: 260,
       description:
         "Lee - Bo and Lee are inseparable co-workers who grew up learning the trade together, and they have a reputation for getting shipments out faster than anyone else.",
       avatar: defaultAvatarById.t4,
@@ -273,8 +273,8 @@ const demo = {
       id: "p1",
       label: "Ivy",
       group: "planters",
-      x: 660,
-      y: 210,
+      x: 700,
+      y: 220,
       description:
         "Ivy - Ivy is another supplier for Noah, and while their working relationship is polite, Noah wishes Ivy were more open and collaborative about new ideas.",
       avatar: defaultAvatarById.p1,
@@ -283,8 +283,8 @@ const demo = {
       id: "p2",
       label: "Bud",
       group: "planters",
-      x: 700,
-      y: 340,
+      x: 720,
+      y: 320,
       description:
         "Bud - Noah relies on Bud as one of his main suppliers, and though they're only casually friendly, Noah appreciates that Bud always delivers on time and keeps things professional.",
       avatar: defaultAvatarById.p2,
@@ -293,8 +293,8 @@ const demo = {
       id: "s1",
       label: "Ada",
       group: "scientists",
-      x: 220,
-      y: 520,
+      x: 440,
+      y: 440,
       description:
         "Ada - Noah has bad blood with ADA, one of the manufacturers — she once shorted him on a shipment and publicly called him out over it, so he refuses to work with her unless absolutely necessary.",
       avatar: defaultAvatarById.s1,
@@ -303,8 +303,8 @@ const demo = {
       id: "s2",
       label: "Bo",
       group: "scientists",
-      x: 120,
-      y: 620,
+      x: 320,
+      y: 520,
       description:
         "Bo - Ada and Bo are best friends on the manufacturing floor, often teaming up to solve problems and gossip about the sellers' drama.",
       avatar: defaultAvatarById.s2,
@@ -313,8 +313,8 @@ const demo = {
       id: "s3",
       label: "Cy",
       group: "scientists",
-      x: 360,
-      y: 610,
+      x: 560,
+      y: 520,
       description:
         "Cy - Ada and Cy work together as part of the manufacturing team, exchanging casual banter on the job but mostly focusing on production.",
       avatar: defaultAvatarById.s3,
@@ -559,7 +559,7 @@ const Edge = ({ a, b, type = "solid", highlight = false }) => {
 // ---------------- Component ----------------
 export default function RelationshipMap() {
   const [data, setData] = useState({ groups: {}, nodes: [], links: [] });
-  const [focused, setFocused] = useState(null);
+  const [focused, setFocused] = useState("main");
   const [lastError, setLastError] = useState("");
   const containerRef = useRef(null);
   const { transform, events, setView, limits } = usePanZoom({ initial: 1, min: 0.5, max: 2.5 });
@@ -689,6 +689,13 @@ export default function RelationshipMap() {
     return m;
   }, [data.nodes]);
 
+  useEffect(() => {
+    if (!focused) return;
+    if (!nodesById.has(focused)) {
+      setFocused(null);
+    }
+  }, [focused, nodesById]);
+
   // Node dragging
   const draggingNode = useRef(null);
   const dragLast = useRef({ x: 0, y: 0 });
@@ -737,10 +744,10 @@ export default function RelationshipMap() {
   // Group labels (positions roughly matching demo)
   const groupLabels = useMemo(
     () => ({
-      team: { x: 210, y: 100, label: "Competitors" },
-      planters: { x: 550, y: 140, label: "Suppliers" },
-      scientists: { x: 260, y: 470, label: "Manufacturers" },
-      main: { x: 350, y: 260, label: "The Main Guy" },
+      team: { x: 360, y: 80, label: "Competitors" },
+      planters: { x: 700, y: 130, label: "Suppliers" },
+      scientists: { x: 380, y: 460, label: "Manufacturers" },
+      main: { x: 520, y: 220, label: "The Main Guy" },
     }),
     []
   );
