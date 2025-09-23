@@ -233,8 +233,8 @@ const demo = {
       id: "t1",
       label: "Ari",
       group: "team",
-      x: 293,
-      y: 109,
+      x: 327,
+      y: 203,
       description:
         "Ari - Ari runs a rival ice operation and loves to brag about outselling Noah, which drives Noah crazy; their rivalry fuels most of Noah's motivation to outdo everyone else.",
       avatar: defaultAvatarById.t1,
