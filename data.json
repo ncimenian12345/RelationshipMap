@@ -99,12 +99,14 @@
     }
   ],
   "links": [
-    { "id": "l1", "source": "t1", "target": "main", "type": "dashed" },
-    { "id": "l2", "source": "t3", "target": "main", "type": "dashed" },
+    { "id": "l1", "source": "t1", "target": "main", "type": "trust" },
+    { "id": "l2", "source": "t3", "target": "main", "type": "trust" },
     { "id": "l3", "source": "t4", "target": "s2", "type": "solid" },
-    { "id": "l4", "source": "p1", "target": "main", "type": "curved" },
-    { "id": "l5", "source": "p2", "target": "main", "type": "curved" },
+    { "id": "l4", "source": "p1", "target": "main", "type": "mixed" },
+    { "id": "l5", "source": "p2", "target": "main", "type": "mixed" },
     { "id": "l6", "source": "s1", "target": "s2", "type": "solid" },
-    { "id": "l7", "source": "s1", "target": "main", "type": "dashed" }
+    { "id": "l7", "source": "s1", "target": "main", "type": "trust" },
+    { "id": "l8", "source": "t2", "target": "main", "type": "solid" },
+    { "id": "l9", "source": "s3", "target": "s1", "type": "mixed" }
   ]
 }
