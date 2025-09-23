@@ -740,7 +740,7 @@ export default function RelationshipMap() {
       team: { x: 210, y: 100, label: "Competitors" },
       planters: { x: 550, y: 140, label: "Suppliers" },
       scientists: { x: 260, y: 470, label: "Manufacturers" },
-      main: { x: 350, y: 260, label: "Noah" },
+      main: { x: 350, y: 260, label: "The Main Guy" },
     }),
     []
   );
