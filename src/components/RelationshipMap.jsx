@@ -264,7 +264,7 @@ const demo = {
       label: "Lee",
       group: "team",
       x: 392,
-      y: 563,
+      y: 663,
       description:
         "Lee - Bo and Lee are inseparable co-workers who grew up learning the trade together, and they have a reputation for getting shipments out faster than anyone else.",
       avatar: defaultAvatarById.t4,
@@ -303,7 +303,7 @@ const demo = {
       id: "s2",
       label: "Bo",
       group: "scientists",
-      x: 351,
+      x: 457,
       y: 663,
       description:
         "Bo - Ada and Bo are best friends on the manufacturing floor, often teaming up to solve problems and gossip about the sellers' drama.",
@@ -313,7 +313,7 @@ const demo = {
       id: "s3",
       label: "Cy",
       group: "scientists",
-      x: 560,
+      x: 615,
       y: 520,
       description:
         "Cy - Ada and Cy work together as part of the manufacturing team, exchanging casual banter on the job but mostly focusing on production.",
